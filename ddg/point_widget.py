@@ -206,9 +206,9 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
             if file_name[0] != '':
                 self.canvas.export_points(file_name[0])
         elif self.radioButtonOverlay.isChecked():
-            file_name = QtWidgets.QFileDialog.getSaveFileName(self, self.tr('Export Image With Points'), os.path.join(self.canvas.directory, 'overlay.png'), 'PNG (*.png);;JPG (*.jpg)')
-            if file_name[0] != '':
-                self.canvas.export_overlay(file_name[0])
+            directory = QtWidgets.QFileDialog.getExistingDirectory(self, self.tr('Select Output Directory'), self.canvas.directory)
+            if directory != '':
+                self.canvas.export_all_overlays(directory)
         else:
             self.chip_dialog = ChipDialog(self.canvas.classes, self.canvas.points, self.canvas.directory, self.canvas.survey_id)
             self.chip_dialog.show()

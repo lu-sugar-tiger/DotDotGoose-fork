@@ -257,6 +257,44 @@ class Canvas(QtWidgets.QGraphicsScene):
             image.save(file_name)
             painter.end()
 
+    def export_all_overlays(self, output_directory):
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
+        display_radius = self.ui['point']['radius']
+        
+        for image_name in self.points:
+            try:
+                image_path = os.path.join(self.directory, image_name)
+                image = QtGui.QImage(image_path)
+                if image.isNull():
+                    continue
+
+                if image.format() not in [QtGui.QImage.Format.Format_RGB32, QtGui.QImage.Format.Format_ARGB32]:
+                    image = image.convertToFormat(QtGui.QImage.Format.Format_RGB32)
+
+                painter = QtGui.QPainter(image)
+                
+                if image_name in self.points:
+                     for class_name in self.points[image_name]:
+                        if class_name in self.colors:
+                             color = self.colors[class_name]
+                             brush = QtGui.QBrush(color, QtCore.Qt.BrushStyle.SolidPattern)
+                             pen = QtGui.QPen(brush, 2)
+                             painter.setPen(pen)
+                             painter.setBrush(brush)
+                             
+                             points = self.points[image_name][class_name]
+                             for point in points:
+                                 painter.drawEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius))
+                
+                painter.end()
+                
+                output_path = os.path.join(output_directory, 'overlay_' + image_name)
+                image.save(output_path)
+            except Exception:
+                pass
+        
+        QtWidgets.QApplication.restoreOverrideCursor()
+
     def generate_lookup_table(self, brightness, contrast):
         LUT = [i for i in range(0, 256)]
         # Brighten image

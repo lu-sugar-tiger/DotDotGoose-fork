@@ -2,6 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson on 2026-03-06 for batch overlay export
 #
 # --------------------------------------------------------------------------
 #

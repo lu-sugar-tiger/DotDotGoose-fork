@@ -2,6 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson on 2026-03-06 for batch overlay export
 #
 # --------------------------------------------------------------------------
 #
@@ -22,7 +23,7 @@
 # along with with this software.  If not, see <http://www.gnu.org/licenses/>.
 #
 # --------------------------------------------------------------------------
-__version__ = '1.7.1'
+__version__ = '1.7.0-fork'
 
 from .dark_mode_palette import DarkModePalette  # noqa: F401
 from .about_dialog import AboutDialog  # noqa: F401

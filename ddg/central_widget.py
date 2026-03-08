@@ -95,6 +95,7 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.graphicsView.toggle_grid.connect(self.point_widget.checkBoxDisplayGrid.toggle)
         self.graphicsView.switch_class.connect(self.point_widget.set_active_class)
         self.graphicsView.add_point.connect(self.canvas.add_point)
+        self.graphicsView.points_moved.connect(self.canvas.update_point_positions)
         self.canvas.image_loaded.connect(self.graphicsView.image_loaded)
         self.canvas.directory_set.connect(self.display_working_directory)
 

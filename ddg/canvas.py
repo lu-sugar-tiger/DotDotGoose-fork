@@ -201,9 +201,38 @@ class Canvas(QtWidgets.QGraphicsScene):
                 pen = QtGui.QPen(brush, 2)
                 for point in points:
                     if class_name == self.current_class_name:
-                        self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
+                        item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
                     else:
-                        self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
+                        item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
+                    item.setData(0, class_name)
+                    item.setData(1, point)
+
+    def update_point_positions(self, items_to_move, dx, dy):
+        if self.current_image_name is None:
+            return
+            
+        for class_name, old_point in items_to_move:
+            if class_name in self.points[self.current_image_name]:
+                points_list = self.points[self.current_image_name][class_name]
+                for i, p in enumerate(points_list):
+                    if p.x() == old_point.x() and p.y() == old_point.y():
+                        new_p = QtCore.QPointF(p.x() + dx, p.y() + dy)
+                        points_list[i] = new_p
+                        
+                        # Update selection if this point was selected
+                        for j, (sel_class, sel_point) in enumerate(self.selection):
+                            if sel_class == class_name and sel_point.x() == old_point.x() and sel_point.y() == old_point.y():
+                                self.selection[j] = (class_name, new_p)
+                                break
+                        break
+                        
+        self.dirty = True
+        self.display_points()
+        
+        display_radius = self.ui['point']['radius']
+        for class_name, point in self.selection:
+            offset = ((display_radius + 6) // 2)
+            self.addEllipse(QtCore.QRectF(point.x() - offset, point.y() - offset, display_radius + 6, display_radius + 6), self.selected_pen)
 
     def export_counts(self, file_name):
         if self.current_image_name is not None:

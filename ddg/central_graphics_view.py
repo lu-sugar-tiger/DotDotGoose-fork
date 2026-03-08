@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 #
 # DotDotGoose
+# DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson on 2026-03-08 for new mouse interactions
 #
 # --------------------------------------------------------------------------
 #
@@ -35,6 +37,8 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
     toggle_grid = QtCore.pyqtSignal()
     switch_class = QtCore.pyqtSignal(int)
 
+    points_moved = QtCore.pyqtSignal(list, float, float)
+
     def __init__(self, parent=None):
         QtWidgets.QGraphicsView.__init__(self, parent)
         self.setMouseTracking(True)
@@ -44,6 +48,13 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         self.alt = False
         self.delay = 0
         self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        
+        self.left_click_mode = 'add'
+        self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+        self._pan_start = None
+        self._drag_start = None
+        self._items_to_move = []
+        self._original_item_positions = {}
 
     def enterEvent(self, event):
         self.setFocus()
@@ -108,23 +119,110 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             self.shift = False
 
     def mouseMoveEvent(self, event):
+        if self._pan_start is not None:
+            delta = self._pan_start - event.pos()
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
+            self._pan_start = event.pos()
+            event.accept()
+            return
+            
+        if self._drag_start is not None:
+            scene_pos = self.mapToScene(event.pos())
+            delta = scene_pos - self._drag_start
+            
+            # visually move items for live dragging feedback
+            for (c, p), item in self._original_item_positions.items():
+                item.setTransform(QtGui.QTransform().translate(delta.x(), delta.y()))
+            
+            event.accept()
+            return
+            
         QtWidgets.QGraphicsView.mouseMoveEvent(self, event)
 
     def mousePressEvent(self, event):
-        if self.ctrl:
-            self.add_point.emit(self.mapToScene(event.pos()))
-        elif self.shift:
-            self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
-            QtWidgets.QGraphicsView.mousePressEvent(self, event)
-        else:
-            self.setDragMode(QtWidgets.QGraphicsView.DragMode.ScrollHandDrag)
-            QtWidgets.QGraphicsView.mousePressEvent(self, event)
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
+            self._pan_start = event.pos()
+            self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+
+        if event.button() == QtCore.Qt.MouseButton.RightButton:
+            if self.left_click_mode == 'add':
+                self.left_click_mode = 'select_move'
+                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            else:
+                self.left_click_mode = 'add'
+                self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+            event.accept()
+            return
+            
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            if self.left_click_mode == 'add':
+                self.add_point.emit(self.mapToScene(event.pos()))
+            elif self.left_click_mode == 'select_move':
+                scene_pos = self.mapToScene(event.pos())
+                item = self.scene().itemAt(scene_pos, self.transform())
+                
+                if isinstance(item, QtWidgets.QGraphicsEllipseItem) and item.data(0) is not None:
+                    class_name = item.data(0)
+                    point = item.data(1)
+                    
+                    is_selected = False
+                    if hasattr(self.scene(), 'selection'):
+                        for sel_class, sel_point in self.scene().selection:
+                            if sel_class == class_name and sel_point.x() == point.x() and sel_point.y() == point.y():
+                                is_selected = True
+                                break
+                    
+                    self._drag_start = scene_pos
+                    if is_selected:
+                        self._items_to_move = self.scene().selection.copy()
+                    else:
+                        self._items_to_move = [(class_name, point)]
+                    
+                    self._original_item_positions = {}
+                    for c, p in self._items_to_move:
+                        for scene_item in self.scene().items():
+                            if isinstance(scene_item, QtWidgets.QGraphicsEllipseItem):
+                                if scene_item.data(0) == c and scene_item.data(1) is not None and scene_item.data(1).x() == p.x() and scene_item.data(1).y() == p.y():
+                                    self._original_item_positions[(c, p)] = scene_item
+                                    break
+                else:
+                    self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
+                    QtWidgets.QGraphicsView.mousePressEvent(self, event)
 
     def mouseReleaseEvent(self, event):
-        if self.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag:
-            rect = self.rubberBandRect()
-            self.region_selected.emit(self.mapToScene(rect).boundingRect())
-            QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
+            self._pan_start = None
+            if self.left_click_mode == 'add':
+                self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+            else:
+                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            event.accept()
+            return
+            
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            if self._drag_start is not None:
+                scene_pos = self.mapToScene(event.pos())
+                delta = scene_pos - self._drag_start
+                if delta.x() != 0 or delta.y() != 0:
+                    self.points_moved.emit(self._items_to_move, delta.x(), delta.y())
+                
+                for (c, p), item in self._original_item_positions.items():
+                    item.setTransform(QtGui.QTransform())
+                
+                self._drag_start = None
+                self._items_to_move = []
+                self._original_item_positions = {}
+                event.accept()
+                return
+
+            if self.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag:
+                rect = self.rubberBandRect()
+                self.region_selected.emit(self.mapToScene(rect).boundingRect())
+                QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
+        
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
 
     def resizeEvent(self, event):

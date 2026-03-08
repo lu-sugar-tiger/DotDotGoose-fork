@@ -90,7 +90,9 @@ class Canvas(QtWidgets.QGraphicsScene):
             active_brush = QtGui.QBrush(active_color, QtCore.Qt.BrushStyle.SolidPattern)
             active_pen = QtGui.QPen(active_brush, 2)
             self.points[self.current_image_name][self.current_class_name].append(point)
-            self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
+            item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
+            item._class_name = self.current_class_name
+            item._point = point
             self.update_point_count.emit(self.current_image_name, self.current_class_name, len(self.points[self.current_image_name][self.current_class_name]))
             self.dirty = True
             self.undo_queue.append(('add', self.current_class_name, point))
@@ -204,8 +206,8 @@ class Canvas(QtWidgets.QGraphicsScene):
                         item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
                     else:
                         item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
-                    item.setData(0, class_name)
-                    item.setData(1, point)
+                    item._class_name = class_name
+                    item._point = point
 
     def update_point_positions(self, items_to_move, dx, dy):
         if self.current_image_name is None:

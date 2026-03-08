@@ -164,9 +164,9 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                 scene_pos = self.mapToScene(event.pos())
                 item = self.scene().itemAt(scene_pos, self.transform())
                 
-                if isinstance(item, QtWidgets.QGraphicsEllipseItem) and item.data(0) is not None:
-                    class_name = item.data(0)
-                    point = item.data(1)
+                if isinstance(item, QtWidgets.QGraphicsEllipseItem) and hasattr(item, '_class_name'):
+                    class_name = item._class_name
+                    point = item._point
                     
                     is_selected = False
                     if hasattr(self.scene(), 'selection'):
@@ -185,7 +185,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                     for c, p in self._items_to_move:
                         for scene_item in self.scene().items():
                             if isinstance(scene_item, QtWidgets.QGraphicsEllipseItem):
-                                if scene_item.data(0) == c and scene_item.data(1) is not None and scene_item.data(1).x() == p.x() and scene_item.data(1).y() == p.y():
+                                if hasattr(scene_item, '_class_name') and scene_item._class_name == c and scene_item._point.x() == p.x() and scene_item._point.y() == p.y():
                                     self._original_item_positions[(c, p)] = scene_item
                                     break
                 else:

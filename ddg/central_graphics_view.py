@@ -54,7 +54,6 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         self._pan_start = None
         self._drag_start = None
         self._items_to_move = []
-        self._original_item_positions = {}
 
     def enterEvent(self, event):
         self.setFocus()
@@ -131,9 +130,15 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             scene_pos = self.mapToScene(event.pos())
             delta = scene_pos - self._drag_start
             
-            # visually move items for live dragging feedback
-            for (c, p), item in self._original_item_positions.items():
-                item.setTransform(QtGui.QTransform().translate(delta.x(), delta.y()))
+            if delta.x() != 0 or delta.y() != 0:
+                self.points_moved.emit(self._items_to_move, delta.x(), delta.y())
+                
+                # Update our local tracker to precisely match the new data locations
+                for i in range(len(self._items_to_move)):
+                    c, p = self._items_to_move[i]
+                    self._items_to_move[i] = (c, QtCore.QPointF(p.x() + delta.x(), p.y() + delta.y()))
+                
+                self._drag_start = scene_pos
             
             event.accept()
             return
@@ -195,14 +200,11 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                         self._items_to_move = self.scene().selection.copy()
                     else:
                         self._items_to_move = [(class_name, point)]
+                        
+                        if hasattr(self.scene(), 'selection'):
+                            self.scene().selection = [(class_name, point)]
+                            self.scene().display_points()
                     
-                    self._original_item_positions = {}
-                    for c, p in self._items_to_move:
-                        for scene_item in self.scene().items():
-                            if isinstance(scene_item, QtWidgets.QGraphicsEllipseItem):
-                                if hasattr(scene_item, '_class_name') and scene_item._class_name == c and scene_item._point.x() == p.x() and scene_item._point.y() == p.y():
-                                    self._original_item_positions[(c, p)] = scene_item
-                                    break
                     event.accept()
                     return
                 else:
@@ -221,22 +223,8 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if self._drag_start is not None:
-                scene_pos = self.mapToScene(event.pos())
-                delta = scene_pos - self._drag_start
-                print(f"DEBUG: mouseRelease with delta {delta.x()}, {delta.y()}", flush=True)
-                if delta.x() != 0 or delta.y() != 0:
-                    try:
-                        self.points_moved.emit(self._items_to_move, delta.x(), delta.y())
-                        print("DEBUG: Points moved signal emitted", flush=True)
-                    except Exception as e:
-                        print("DEBUG: EMIT ERROR:", e, flush=True)
-                
-                for (c, p), item in self._original_item_positions.items():
-                    item.setTransform(QtGui.QTransform())
-                
                 self._drag_start = None
                 self._items_to_move = []
-                self._original_item_positions = {}
                 event.accept()
                 return
 

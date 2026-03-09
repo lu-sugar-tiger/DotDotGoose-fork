@@ -162,7 +162,16 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                 self.add_point.emit(self.mapToScene(event.pos()))
             elif self.left_click_mode == 'select_move':
                 scene_pos = self.mapToScene(event.pos())
-                item = self.scene().itemAt(scene_pos, self.transform())
+                
+                padding = self.scene().ui['point']['radius'] if hasattr(self.scene(), 'ui') else 10
+                rect = QtCore.QRectF(scene_pos.x() - padding, scene_pos.y() - padding, padding * 2, padding * 2)
+                items = self.scene().items(rect, QtCore.Qt.ItemSelectionMode.IntersectsItemShape, QtCore.Qt.SortOrder.DescendingOrder, self.transform())
+                
+                item = None
+                for i in items:
+                    if isinstance(i, QtWidgets.QGraphicsEllipseItem) and hasattr(i, '_class_name'):
+                        item = i
+                        break
                 
                 if isinstance(item, QtWidgets.QGraphicsEllipseItem) and hasattr(item, '_class_name'):
                     class_name = item._class_name

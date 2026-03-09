@@ -164,8 +164,9 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if self.left_click_mode == 'add':
-                print("DEBUG: Add point mode activated", flush=True)
-                self.add_point.emit(self.mapToScene(event.pos()))
+                self._add_start = event.pos()
+                self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
+                QtWidgets.QGraphicsView.mousePressEvent(self, event)
             elif self.left_click_mode == 'select_move':
                 print("DEBUG: left click in select_move mode", flush=True)
                 scene_pos = self.mapToScene(event.pos())
@@ -230,7 +231,16 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
 
             if self.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag:
                 rect = self.rubberBandRect()
-                self.region_selected.emit(self.mapToScene(rect).boundingRect())
+                is_click = rect.width() < 5 and rect.height() < 5
+                
+                if self.left_click_mode == 'add' and is_click:
+                    if hasattr(self, '_add_start') and self._add_start is not None:
+                        self.add_point.emit(self.mapToScene(self._add_start))
+                else:
+                    self.region_selected.emit(self.mapToScene(rect).boundingRect())
+                    
+                if hasattr(self, '_add_start'):
+                    self._add_start = None
                 QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
         
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)

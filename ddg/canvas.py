@@ -95,7 +95,9 @@ class Canvas(QtWidgets.QGraphicsScene):
             item._point = point
             self.update_point_count.emit(self.current_image_name, self.current_class_name, len(self.points[self.current_image_name][self.current_class_name]))
             self.dirty = True
-            self.undo_queue.append(('add', self.current_class_name, point))
+            if hasattr(self, 'selection') and self.selection:
+                self.selection = []
+                self.display_points()
 
     def clear_grid(self):
         for graphic in self.items():
@@ -208,6 +210,12 @@ class Canvas(QtWidgets.QGraphicsScene):
                         item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
                     item._class_name = class_name
                     item._point = point
+                    
+        if hasattr(self, 'selection'):
+            display_radius = self.ui['point']['radius']
+            for class_name, point in self.selection:
+                offset = ((display_radius + 6) // 2)
+                self.addEllipse(QtCore.QRectF(point.x() - offset, point.y() - offset, display_radius + 6, display_radius + 6), self.selected_pen)
 
     def update_point_positions(self, items_to_move, dx, dy):
         if self.current_image_name is None:
@@ -230,11 +238,6 @@ class Canvas(QtWidgets.QGraphicsScene):
                         
         self.dirty = True
         self.display_points()
-        
-        display_radius = self.ui['point']['radius']
-        for class_name, point in self.selection:
-            offset = ((display_radius + 6) // 2)
-            self.addEllipse(QtCore.QRectF(point.x() - offset, point.y() - offset, display_radius + 6, display_radius + 6), self.selected_pen)
 
     def export_counts(self, file_name):
         if self.current_image_name is not None:

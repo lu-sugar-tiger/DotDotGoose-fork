@@ -159,18 +159,21 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if self.left_click_mode == 'add':
+                print("DEBUG: Add point mode activated", flush=True)
                 self.add_point.emit(self.mapToScene(event.pos()))
             elif self.left_click_mode == 'select_move':
+                print("DEBUG: left click in select_move mode", flush=True)
                 scene_pos = self.mapToScene(event.pos())
                 
                 padding = self.scene().ui['point']['radius'] if hasattr(self.scene(), 'ui') else 10
                 rect = QtCore.QRectF(scene_pos.x() - padding, scene_pos.y() - padding, padding * 2, padding * 2)
-                items = self.scene().items(rect, QtCore.Qt.ItemSelectionMode.IntersectsItemShape, QtCore.Qt.SortOrder.DescendingOrder, self.transform())
+                items = self.scene().items(rect, QtCore.Qt.ItemSelectionMode.IntersectsItemShape, QtCore.Qt.SortOrder.DescendingOrder)
                 
                 item = None
                 for i in items:
                     if isinstance(i, QtWidgets.QGraphicsEllipseItem) and hasattr(i, '_class_name'):
                         item = i
+                        print("DEBUG: Found point to grab:", item._class_name, item._point, flush=True)
                         break
                 
                 if isinstance(item, QtWidgets.QGraphicsEllipseItem) and hasattr(item, '_class_name'):
@@ -197,6 +200,8 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                                 if hasattr(scene_item, '_class_name') and scene_item._class_name == c and scene_item._point.x() == p.x() and scene_item._point.y() == p.y():
                                     self._original_item_positions[(c, p)] = scene_item
                                     break
+                    event.accept()
+                    return
                 else:
                     self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
                     QtWidgets.QGraphicsView.mousePressEvent(self, event)
@@ -215,8 +220,13 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             if self._drag_start is not None:
                 scene_pos = self.mapToScene(event.pos())
                 delta = scene_pos - self._drag_start
+                print(f"DEBUG: mouseRelease with delta {delta.x()}, {delta.y()}", flush=True)
                 if delta.x() != 0 or delta.y() != 0:
-                    self.points_moved.emit(self._items_to_move, delta.x(), delta.y())
+                    try:
+                        self.points_moved.emit(self._items_to_move, delta.x(), delta.y())
+                        print("DEBUG: Points moved signal emitted", flush=True)
+                    except Exception as e:
+                        print("DEBUG: EMIT ERROR:", e, flush=True)
                 
                 for (c, p), item in self._original_item_positions.items():
                     item.setTransform(QtGui.QTransform())

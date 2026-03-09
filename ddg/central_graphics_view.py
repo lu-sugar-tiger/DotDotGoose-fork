@@ -153,7 +153,14 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                     for p in p_list:
                         dist = (p.x() - scene_pos.x())**2 + (p.y() - scene_pos.y())**2
                         if dist <= padding**2:
-                            hit_point = True
+                            is_selected = False
+                            if hasattr(self.scene(), 'selection'):
+                                for sel_class, sel_point in self.scene().selection:
+                                    if sel_class == c_name and abs(sel_point.x() - p.x()) < 1e-4 and abs(sel_point.y() - p.y()) < 1e-4:
+                                        is_selected = True
+                                        break
+                            if is_selected:
+                                hit_point = True
                             break
                     if hit_point:
                         break
@@ -226,6 +233,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                             self.scene().selection = [(class_name, point)]
                             self.scene().display_points()
                     
+                    self.setCursor(QtCore.Qt.CursorShape.SizeAllCursor)
                     event.accept()
                     return
                 else:
@@ -298,6 +306,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         self.repaint()
 
     def zoom_out(self):
-        self.scale(0.9, 0.9)
-        # Fix for MacOS and PyQt5 > v5.10
-        self.repaint()
+        if self.transform().m11() > 0.5:
+            self.scale(0.9, 0.9)
+            # Fix for MacOS and PyQt5 > v5.10
+            self.repaint()

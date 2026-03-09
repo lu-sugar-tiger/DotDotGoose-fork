@@ -68,8 +68,8 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.tableWidgetClasses.verticalHeader().setVisible(False)
         self.tableWidgetClasses.horizontalHeader().setMinimumSectionSize(1)
         self.tableWidgetClasses.horizontalHeader().setStretchLastSection(False)
-        self.tableWidgetClasses.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.tableWidgetClasses.setColumnWidth(1, 30)
+        self.tableWidgetClasses.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.tableWidgetClasses.setColumnWidth(0, 30)
         self.tableWidgetClasses.cellClicked.connect(self.cell_clicked)
         self.tableWidgetClasses.cellChanged.connect(self.cell_changed)
         self.tableWidgetClasses.selectionModel().selectionChanged.connect(self.selection_changed)
@@ -105,11 +105,17 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.horizontalSliderContrast.valueChanged.connect(self.set_contrast)
 
     def add_class(self):
-        class_name, ok = QtWidgets.QInputDialog.getText(self, self.tr('New Class'), self.tr('Class Name'))
-        if ok and class_name.strip():
-            self.canvas.add_class(class_name.strip())
-            self.display_classes()
-            self.display_count_tree()
+        while True:
+            class_name, ok = QtWidgets.QInputDialog.getText(self, self.tr('New Class'), self.tr('Class Name'))
+            if not ok:
+                break
+            if class_name.strip():
+                self.canvas.add_class(class_name.strip())
+                self.display_classes()
+                self.display_count_tree()
+                break
+            else:
+                QtWidgets.QMessageBox.warning(self, self.tr('Warning'), self.tr('Class name cannot be empty.'))
 
     def display_grid(self, display):
         self.canvas.toggle_grid(display=display)
@@ -118,7 +124,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.canvas.toggle_points(display=display)
 
     def cell_changed(self, row, column):
-        if column == 0:
+        if column == 1:
             old_class = self.canvas.classes[row]
             new_class = self.tableWidgetClasses.item(row, column).text()
             if old_class != new_class:
@@ -153,13 +159,13 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.tableWidgetClasses.setRowCount(len(self.canvas.classes))
         row = 0
         for class_name in self.canvas.classes:
-            item = QtWidgets.QTableWidgetItem(class_name)
-            self.tableWidgetClasses.setItem(row, 0, item)
-
             item = QtWidgets.QTableWidgetItem()
             icon = QtGui.QPixmap(20, 20)
             icon.fill(self.canvas.colors[class_name])
             item.setData(QtCore.Qt.ItemDataRole.DecorationRole, icon)
+            self.tableWidgetClasses.setItem(row, 0, item)
+
+            item = QtWidgets.QTableWidgetItem(class_name)
             self.tableWidgetClasses.setItem(row, 1, item)
             row += 1
         self.tableWidgetClasses.selectionModel().clear()

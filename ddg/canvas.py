@@ -504,6 +504,8 @@ class Canvas(QtWidgets.QGraphicsScene):
             image_name = os.path.split(file_name)[1]
             if image_name not in self.points:
                 self.points[image_name] = {}
+        if not self.classes:
+            self.add_class('Default')
         if len(images) > 0:
             self.load_image(images[0])
 
@@ -656,7 +658,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.image_loaded.emit('', '')
         self.directory_set.emit('')
         
-        self.add_class('Class 1')
+        self.add_class('Default')
 
     def remove_class(self, class_name):
         index = self.classes.index(class_name)

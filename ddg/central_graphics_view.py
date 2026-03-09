@@ -144,6 +144,10 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             event.accept()
             return
             
+        if self.left_click_mode == 'add' and event.buttons() & QtCore.Qt.MouseButton.LeftButton:
+            if self._add_start is not None and (event.pos() - self._add_start).manhattanLength() > 3:
+                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+
         if self.left_click_mode == 'select_move':
             scene_pos = self.mapToScene(event.pos())
             hit_point = False
@@ -193,7 +197,6 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if self.left_click_mode == 'add':
                 self._add_start = event.pos()
-                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
                 self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
                 QtWidgets.QGraphicsView.mousePressEvent(self, event)
             elif self.left_click_mode == 'select_move':

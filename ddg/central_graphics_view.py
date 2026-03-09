@@ -143,6 +143,26 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             event.accept()
             return
             
+        if self.left_click_mode == 'select_move':
+            scene_pos = self.mapToScene(event.pos())
+            hit_point = False
+            padding = self.scene().ui['point']['radius'] if hasattr(self.scene(), 'ui') else 10
+            
+            if hasattr(self.scene(), 'points') and self.scene().current_image_name in self.scene().points:
+                for c_name, p_list in self.scene().points[self.scene().current_image_name].items():
+                    for p in p_list:
+                        dist = (p.x() - scene_pos.x())**2 + (p.y() - scene_pos.y())**2
+                        if dist <= padding**2:
+                            hit_point = True
+                            break
+                    if hit_point:
+                        break
+                        
+            if hit_point:
+                self.setCursor(QtCore.Qt.CursorShape.SizeAllCursor)
+            else:
+                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                
         QtWidgets.QGraphicsView.mouseMoveEvent(self, event)
 
     def mousePressEvent(self, event):
@@ -226,6 +246,12 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             if self._drag_start is not None:
                 self._drag_start = None
                 self._items_to_move = []
+                
+                if self.left_click_mode == 'add':
+                    self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+                else:
+                    self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                    
                 event.accept()
                 return
 
@@ -244,6 +270,10 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                 QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
         
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
+        if self.left_click_mode == 'add':
+            self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+        else:
+            self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
     def resizeEvent(self, event):
         self.resize_image()

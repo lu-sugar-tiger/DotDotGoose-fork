@@ -66,10 +66,13 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.pushButtonAddClass.setIcon(QtGui.QIcon('icons:add.svg'))
 
         self.tableWidgetClasses.verticalHeader().setVisible(False)
+        self.tableWidgetClasses.setColumnCount(3)
+        self.tableWidgetClasses.setHorizontalHeaderLabels([self.tr('Color'), self.tr('Class'), self.tr('Count')])
         self.tableWidgetClasses.horizontalHeader().setMinimumSectionSize(1)
         self.tableWidgetClasses.horizontalHeader().setStretchLastSection(False)
         self.tableWidgetClasses.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
         self.tableWidgetClasses.setColumnWidth(0, 30)
+        self.tableWidgetClasses.setColumnWidth(2, 50)
         self.tableWidgetClasses.cellClicked.connect(self.cell_clicked)
         self.tableWidgetClasses.cellChanged.connect(self.cell_changed)
         self.tableWidgetClasses.selectionModel().selectionChanged.connect(self.selection_changed)
@@ -134,7 +137,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
                 self.display_count_tree()
 
     def cell_clicked(self, row, column):
-        if column == 1:
+        if column == 0:
             color = QtWidgets.QColorDialog.getColor()
             if color.isValid():
                 self.canvas.colors[self.canvas.classes[row]] = color
@@ -143,7 +146,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
                 icon = QtGui.QPixmap(20, 20)
                 icon.fill(color)
                 item.setData(QtCore.Qt.ItemDataRole.DecorationRole, icon)
-                self.tableWidgetClasses.setItem(row, 1, item)
+                self.tableWidgetClasses.setItem(row, 0, item)
 
     def change_active_point_color(self, event):
         color = QtWidgets.QColorDialog.getColor()
@@ -163,10 +166,21 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
             icon = QtGui.QPixmap(20, 20)
             icon.fill(self.canvas.colors[class_name])
             item.setData(QtCore.Qt.ItemDataRole.DecorationRole, icon)
+            item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
             self.tableWidgetClasses.setItem(row, 0, item)
 
             item = QtWidgets.QTableWidgetItem(class_name)
             self.tableWidgetClasses.setItem(row, 1, item)
+            
+            count = 0
+            for image in self.canvas.points:
+                if class_name in self.canvas.points[image]:
+                    count += len(self.canvas.points[image][class_name])
+            
+            item = QtWidgets.QTableWidgetItem(str(count))
+            item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+            self.tableWidgetClasses.setItem(row, 2, item)
+            
             row += 1
         self.tableWidgetClasses.selectionModel().clear()
 

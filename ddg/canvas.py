@@ -506,6 +506,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                 self.points[image_name] = {}
         if not self.classes:
             self.add_class('Default')
+            self.points_loaded.emit('')
         if len(images) > 0:
             self.load_image(images[0])
 

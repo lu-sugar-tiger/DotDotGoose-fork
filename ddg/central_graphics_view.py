@@ -50,7 +50,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         
         self.left_click_mode = 'add'
-        self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+        self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self._pan_start = None
         self._drag_start = None
         self._items_to_move = []
@@ -185,7 +185,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                 self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
             else:
                 self.left_click_mode = 'add'
-                self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+                self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             event.accept()
             return
             
@@ -216,22 +216,36 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                     class_name = hit_class
                     point = hit_point
                     
-                    is_selected = False
-                    if hasattr(self.scene(), 'selection'):
-                        for sel_class, sel_point in self.scene().selection:
-                            if sel_class == class_name and sel_point.x() == point.x() and sel_point.y() == point.y():
-                                is_selected = True
-                                break
-                    
                     self._drag_start = scene_pos
-                    if is_selected:
-                        self._items_to_move = self.scene().selection.copy()
-                    else:
-                        self._items_to_move = [(class_name, point)]
-                        
-                        if hasattr(self.scene(), 'selection'):
-                            self.scene().selection = [(class_name, point)]
+                    
+                    if self.ctrl:
+                        if is_selected:
+                            new_sel = []
+                            for sel_class, sel_point in self.scene().selection:
+                                if not (sel_class == class_name and abs(sel_point.x() - point.x()) < 1e-4 and abs(sel_point.y() - point.y()) < 1e-4):
+                                    new_sel.append((sel_class, sel_point))
+                            self.scene().selection = new_sel
                             self.scene().display_points()
+                            
+                            self._items_to_move = []
+                            self._drag_start = None
+                            event.accept()
+                            return
+                        else:
+                            if not hasattr(self.scene(), 'selection'):
+                                self.scene().selection = []
+                            self.scene().selection.append((class_name, point))
+                            self.scene().display_points()
+                            self._items_to_move = self.scene().selection.copy()
+                    else:
+                        if is_selected:
+                            self._items_to_move = self.scene().selection.copy()
+                        else:
+                            self._items_to_move = [(class_name, point)]
+                            
+                            if hasattr(self.scene(), 'selection'):
+                                self.scene().selection = [(class_name, point)]
+                                self.scene().display_points()
                     
                     self.setCursor(QtCore.Qt.CursorShape.SizeAllCursor)
                     event.accept()
@@ -244,7 +258,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         if event.button() == QtCore.Qt.MouseButton.MiddleButton:
             self._pan_start = None
             if self.left_click_mode == 'add':
-                self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+                self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
             else:
                 self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
             event.accept()
@@ -256,7 +270,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                 self._items_to_move = []
                 
                 if self.left_click_mode == 'add':
-                    self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+                    self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
                 else:
                     self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
                     
@@ -279,7 +293,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
         if self.left_click_mode == 'add':
-            self.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+            self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         else:
             self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 

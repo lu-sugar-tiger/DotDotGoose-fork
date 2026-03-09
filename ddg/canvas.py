@@ -713,16 +713,27 @@ class Canvas(QtWidgets.QGraphicsScene):
         return True
 
     def select_points(self, rect):
-        self.selection = []
-        self.display_points()
+        modifiers = QtWidgets.QApplication.keyboardModifiers()
+        is_ctrl = bool(modifiers & QtCore.Qt.KeyboardModifier.ControlModifier)
+        
+        if not is_ctrl:
+            self.selection = []
+            
         current = self.points[self.current_image_name]
-        display_radius = self.ui['point']['radius']
         for class_name in current:
             for point in current[class_name]:
                 if rect.contains(point):
-                    offset = ((display_radius + 6) // 2)
-                    self.addEllipse(QtCore.QRectF(point.x() - offset, point.y() - offset, display_radius + 6, display_radius + 6), self.selected_pen)
-                    self.selection.append((class_name, point))
+                    found = False
+                    for i, (sel_class, sel_point) in enumerate(self.selection):
+                        if sel_class == class_name and abs(sel_point.x() - point.x()) < 1e-4 and abs(sel_point.y() - point.y()) < 1e-4:
+                            found = True
+                            if is_ctrl:
+                                self.selection.pop(i)
+                            break
+                    if not found:
+                        self.selection.append((class_name, point))
+                        
+        self.display_points()
 
     def set_current_class(self, class_index):
         if class_index is None or class_index >= len(self.classes):

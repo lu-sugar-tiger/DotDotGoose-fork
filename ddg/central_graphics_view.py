@@ -165,20 +165,23 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
                 print("DEBUG: left click in select_move mode", flush=True)
                 scene_pos = self.mapToScene(event.pos())
                 
+                hit_point = None
+                hit_class = None
+                min_dist = float('inf')
                 padding = self.scene().ui['point']['radius'] if hasattr(self.scene(), 'ui') else 10
-                rect = QtCore.QRectF(scene_pos.x() - padding, scene_pos.y() - padding, padding * 2, padding * 2)
-                items = self.scene().items(rect, QtCore.Qt.ItemSelectionMode.IntersectsItemShape, QtCore.Qt.SortOrder.DescendingOrder)
                 
-                item = None
-                for i in items:
-                    if isinstance(i, QtWidgets.QGraphicsEllipseItem) and hasattr(i, '_class_name'):
-                        item = i
-                        print("DEBUG: Found point to grab:", item._class_name, item._point, flush=True)
-                        break
+                if hasattr(self.scene(), 'points') and self.scene().current_image_name in self.scene().points:
+                    for c_name, p_list in self.scene().points[self.scene().current_image_name].items():
+                        for p in p_list:
+                            dist = (p.x() - scene_pos.x())**2 + (p.y() - scene_pos.y())**2
+                            if dist < min_dist and dist <= padding**2:
+                                min_dist = dist
+                                hit_point = p
+                                hit_class = c_name
                 
-                if isinstance(item, QtWidgets.QGraphicsEllipseItem) and hasattr(item, '_class_name'):
-                    class_name = item._class_name
-                    point = item._point
+                if hit_point is not None:
+                    class_name = hit_class
+                    point = hit_point
                     
                     is_selected = False
                     if hasattr(self.scene(), 'selection'):

@@ -193,6 +193,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if self.left_click_mode == 'add':
                 self._add_start = event.pos()
+                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
                 self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
                 QtWidgets.QGraphicsView.mousePressEvent(self, event)
             elif self.left_click_mode == 'select_move':

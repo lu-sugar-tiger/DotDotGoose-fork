@@ -106,8 +106,8 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
 
     def add_class(self):
         class_name, ok = QtWidgets.QInputDialog.getText(self, self.tr('New Class'), self.tr('Class Name'))
-        if ok:
-            self.canvas.add_class(class_name)
+        if ok and class_name.strip():
+            self.canvas.add_class(class_name.strip())
             self.display_classes()
             self.display_count_tree()
 

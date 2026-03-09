@@ -655,6 +655,8 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.points_loaded.emit('')
         self.image_loaded.emit('', '')
         self.directory_set.emit('')
+        
+        self.add_class('Class 1')
 
     def remove_class(self, class_name):
         index = self.classes.index(class_name)

@@ -2,6 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson, 2026-03 — about dialog updates
 #
 # --------------------------------------------------------------------------
 #
@@ -29,7 +30,7 @@ from ddg import __version__
 
 # from .ui_central_widget import Ui_central as CLASS_DIALOG
 if getattr(sys, 'frozen', False):
-    bundle_dir = sys._MEIPASS
+    bundle_dir = os.path.join(sys._MEIPASS, 'ddg')
 else:
     bundle_dir = os.path.dirname(__file__)
 CLASS_DIALOG, _ = uic.loadUiType(os.path.join(bundle_dir, 'about_dialog.ui'))

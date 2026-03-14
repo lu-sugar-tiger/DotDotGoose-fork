@@ -2,7 +2,8 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson on 2026-03-06 for batch overlay export
+# Modified by: Anson, 2026-03 — undo/redo, selection UX, visibility toggles,
+#   half-transparent selection, relabel flow, batch overlay export
 #
 # --------------------------------------------------------------------------
 #
@@ -41,19 +42,22 @@ class Canvas(QtWidgets.QGraphicsScene):
     update_point_count = QtCore.pyqtSignal(str, str, int)  # Params (image_name, class, count)
     metadata_imported = QtCore.pyqtSignal()
     saving = QtCore.pyqtSignal()
+    active_class_changed = QtCore.pyqtSignal(str)
+    dirty_changed = QtCore.pyqtSignal(bool)
 
     def __init__(self, parent=None):
         QtWidgets.QGraphicsScene.__init__(self, parent)
-        self.dirty = False
+        self._dirty = False
         self.points = {}
         self.colors = {}
+        self.visibility = {}
         self.coordinates = {}
         self.custom_fields = {'fields': [], 'data': {}}
         self.classes = []
         self.selection = []
         self.redo_queue = []
         self.undo_queue = []
-        self.ui = {'grid': {'size': 200, 'color': [255, 255, 255]}, 'point': {'radius': 25, 'color': [255, 255, 0]}}
+        self.ui = {'grid': {'size': 3, 'color': [255, 255, 255]}, 'point': {'radius': 3, 'color': [255, 255, 0]}}
 
         self.survey_id = ''
 
@@ -61,19 +65,47 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.previous_file_name = None  # used for quick save
         self.current_image_name = None
         self.current_class_name = None
+        self.pixmap = None
 
         self.image_cache = {'file_name': '', 'channels': 0, 'data': None}
         self.LUT = np.array([x for x in range(0, 256)], dtype=np.uint8)
-        self.show_grid = True
+        self.show_grid = False
 
-        self.selected_pen = QtGui.QPen(QtGui.QBrush(QtCore.Qt.GlobalColor.red, QtCore.Qt.BrushStyle.SolidPattern), 1)
+        self.palette = [
+            QtGui.QColor(255, 0, 0),       # Red
+            QtGui.QColor(0, 255, 0),       # Green
+            QtGui.QColor(0, 0, 255),       # Blue
+            QtGui.QColor(255, 255, 0),     # Yellow
+            QtGui.QColor(255, 0, 255),     # Magenta
+            QtGui.QColor(0, 255, 255),     # Cyan
+            QtGui.QColor(255, 128, 0),     # Orange
+            QtGui.QColor(128, 0, 128),     # Purple
+            QtGui.QColor(0, 128, 128),     # Teal
+            QtGui.QColor(128, 128, 0),     # Olive
+        ]
+        self.color_index = 0
 
-    def add_class(self, class_name):
+
+    @property
+    def dirty(self):
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, value):
+        if self._dirty != value:
+            self._dirty = value
+            self.dirty_changed.emit(value)
+
+    def add_class(self, class_name, dirty=True):
         if class_name not in self.classes:
             self.classes.append(class_name)
-            self.classes.sort()
-            self.colors[class_name] = QtGui.QColor(QtCore.Qt.GlobalColor.black)
-            self.dirty = True
+            
+            self.colors[class_name] = self.palette[self.color_index % len(self.palette)]
+            self.color_index += 1
+            
+            self.visibility[class_name] = True
+            if dirty:
+                self.dirty = True
 
     def add_custom_field(self, field_def):
         self.custom_fields['fields'].append(field_def)
@@ -82,18 +114,29 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.dirty = True
 
     def add_point(self, point):
-        if self.current_image_name is not None and self.current_class_name is not None:
+        if self.current_image_name is not None and self.current_class_name is not None and self.pixmap is not None:
             if self.current_class_name not in self.points[self.current_image_name]:
                 self.points[self.current_image_name][self.current_class_name] = []
-            display_radius = self.ui['point']['radius']
-            active_color = QtGui.QColor(self.ui['point']['color'][0], self.ui['point']['color'][1], self.ui['point']['color'][2])
-            active_brush = QtGui.QBrush(active_color, QtCore.Qt.BrushStyle.SolidPattern)
-            active_pen = QtGui.QPen(active_brush, 2)
-            self.points[self.current_image_name][self.current_class_name].append(point)
-            item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
-            item._class_name = self.current_class_name
-            item._point = point
+                
+            w = self.pixmap.width()
+            h = self.pixmap.height()
+            diag = np.sqrt(w**2 + h**2)
+            
+            # Store point internally as a ratio [0~1, 0~1]
+            ratio_point = QtCore.QPointF(point.x() / w, point.y() / h)
+            self.points[self.current_image_name][self.current_class_name].append(ratio_point)
+            
+            if self.visibility.get(self.current_class_name, True):
+                display_radius = (self.ui['point']['radius'] * 0.5 / 100.0) * diag
+                display_radius = max(1, display_radius)
+                brush = QtGui.QBrush(self.colors[self.current_class_name], QtCore.Qt.BrushStyle.SolidPattern)
+                pen = QtGui.QPen(brush, 2)
+                item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
+                item._class_name = self.current_class_name
+                item._point = ratio_point
             self.update_point_count.emit(self.current_image_name, self.current_class_name, len(self.points[self.current_image_name][self.current_class_name]))
+            self.undo_queue.append(('add', self.current_class_name, ratio_point))
+            self.redo_queue = []  # New action clears redo history
             self.dirty = True
             if hasattr(self, 'selection') and self.selection:
                 self.selection = []
@@ -179,54 +222,84 @@ class Canvas(QtWidgets.QGraphicsScene):
 
     def display_grid(self):
         self.clear_grid()
-        if self.current_image_name and self.show_grid:
+        if self.current_image_name and self.show_grid and self.pixmap is not None:
+            w = self.pixmap.width()
+            h = self.pixmap.height()
+            
             grid_color = QtGui.QColor(self.ui['grid']['color'][0], self.ui['grid']['color'][1], self.ui['grid']['color'][2])
-            grid_size = self.ui['grid']['size']
+            grid_cols = max(1, int(self.ui['grid']['size']))
+            
             rect = self.itemsBoundingRect()
+            draw_w = rect.width()
+            draw_h = rect.height()
+            x_step = draw_w / grid_cols
+            y_step = draw_h / grid_cols
+            
             brush = QtGui.QBrush(grid_color, QtCore.Qt.BrushStyle.SolidPattern)
             pen = QtGui.QPen(brush, 1)
-            for x in range(grid_size, int(rect.width()), grid_size):
-                line = QtCore.QLineF(x, 0.0, x, rect.height())
+            for i in range(1, grid_cols):
+                x = i * x_step
+                line = QtCore.QLineF(x, 0.0, x, draw_h)
                 self.addLine(line, pen)
-            for y in range(grid_size, int(rect.height()), grid_size):
-                line = QtCore.QLineF(0.0, y, rect.width(), y)
+            for i in range(1, grid_cols):
+                y = i * y_step
+                line = QtCore.QLineF(0.0, y, draw_w, y)
                 self.addLine(line, pen)
 
     def display_points(self):
         self.clear_points()
-        if self.current_image_name in self.points:
-            display_radius = self.ui['point']['radius']
-            active_color = QtGui.QColor(self.ui['point']['color'][0], self.ui['point']['color'][1], self.ui['point']['color'][2])
-            active_brush = QtGui.QBrush(active_color, QtCore.Qt.BrushStyle.SolidPattern)
-            active_pen = QtGui.QPen(active_brush, 2)
+        if self.current_image_name in self.points and self.pixmap is not None:
+            w = self.pixmap.width()
+            h = self.pixmap.height()
+            diag = np.sqrt(w**2 + h**2)
+            display_radius = (self.ui['point']['radius'] * 0.5 / 100.0) * diag
+            display_radius = max(1, display_radius)
+
+            # Build set of selected points for fast lookup
+            has_selection = bool(hasattr(self, 'selection') and self.selection)
+            selected_set = set()
+            if has_selection:
+                for sel_class, sel_point in self.selection:
+                    selected_set.add((sel_class, sel_point.x(), sel_point.y()))
+
             for class_name in self.points[self.current_image_name]:
+                if not self.visibility.get(class_name, True):
+                    continue
+                base_color = self.colors[class_name]
                 points = self.points[self.current_image_name][class_name]
-                brush = QtGui.QBrush(self.colors[class_name], QtCore.Qt.BrushStyle.SolidPattern)
-                pen = QtGui.QPen(brush, 2)
                 for point in points:
-                    if class_name == self.current_class_name:
-                        item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), active_pen, active_brush)
+                    is_selected = has_selection and (class_name, point.x(), point.y()) in selected_set
+                    if has_selection and not is_selected:
+                        # Dim unselected points to 50% opacity
+                        dim_color = QtGui.QColor(base_color)
+                        dim_color.setAlpha(90)
+                        brush = QtGui.QBrush(dim_color, QtCore.Qt.BrushStyle.SolidPattern)
+                        pen = QtGui.QPen(brush, 0)
+                        pen.setStyle(QtCore.Qt.PenStyle.NoPen)
                     else:
-                        item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
+                        brush = QtGui.QBrush(base_color, QtCore.Qt.BrushStyle.SolidPattern)
+                        pen = QtGui.QPen(brush, 2)
+                    draw_x = point.x() * w
+                    draw_y = point.y() * h
+                    item = self.addEllipse(QtCore.QRectF(draw_x - ((display_radius - 1) / 2), draw_y - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
                     item._class_name = class_name
                     item._point = point
-                    
-        if hasattr(self, 'selection'):
-            display_radius = self.ui['point']['radius']
-            for class_name, point in self.selection:
-                offset = ((display_radius + 6) // 2)
-                self.addEllipse(QtCore.QRectF(point.x() - offset, point.y() - offset, display_radius + 6, display_radius + 6), self.selected_pen)
 
     def update_point_positions(self, items_to_move, dx, dy):
-        if self.current_image_name is None:
+        if self.current_image_name is None or self.pixmap is None:
             return
+            
+        w = self.pixmap.width()
+        h = self.pixmap.height()
+        r_dx = dx / w
+        r_dy = dy / h
             
         for class_name, old_point in items_to_move:
             if class_name in self.points[self.current_image_name]:
                 points_list = self.points[self.current_image_name][class_name]
                 for i, p in enumerate(points_list):
                     if p.x() == old_point.x() and p.y() == old_point.y():
-                        new_p = QtCore.QPointF(p.x() + dx, p.y() + dy)
+                        new_p = QtCore.QPointF(p.x() + r_dx, p.y() + r_dy)
                         points_list[i] = new_p
                         
                         # Update selection if this point was selected
@@ -369,7 +442,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         if 'ui' in data:
             self.ui = data['ui']
         else:
-            self.ui = {'grid': {'size': 200, 'color': [255, 255, 255]}, 'point': {'radius': 25, 'color': [255, 255, 0]}}
+            self.ui = {'grid': {'size': 3, 'color': [255, 255, 255]}, 'point': {'radius': 3, 'color': [255, 255, 0]}}
         # End Backward compat
 
         self.colors = data['colors']
@@ -387,17 +460,17 @@ class Canvas(QtWidgets.QGraphicsScene):
             osx_hack = os.path.join(peek, 'OSX')
             directory = os.path.split(osx_hack)[0]
             # end
-            if self.directory == '' or self.directory == directory:
-                self.directory = directory
-                self.directory_set.emit(self.directory)
-                files = glob.glob(os.path.join(self.directory, '*'))
-                image_format = [".jpg", ".jpeg", ".png", ".tif"]
-                f = (lambda x: os.path.splitext(x)[1].lower() in image_format)
-                image_list = list(filter(f, files))
-                image_list = sorted(image_list)
-                self.load_images(image_list)
-            else:
-                QtWidgets.QMessageBox.warning(self.parent(), self.tr('Warning'), self.tr('Working directory already set. Load canceled.'), QtWidgets.QMessageBox.StandardButton.Ok)
+            if self.directory != '' and self.directory != directory:
+                self.reset()
+            
+            self.directory = directory
+            self.directory_set.emit(self.directory)
+            files = glob.glob(os.path.join(self.directory, '*'))
+            image_format = [".jpg", ".jpeg", ".png", ".tif"]
+            f = (lambda x: os.path.splitext(x)[1].lower() in image_format)
+            image_list = list(filter(f, files))
+            image_list = sorted(image_list)
+            self.load_images(image_list)
         else:
             base_path = os.path.split(peek)[0]
             for entry in drop_list:
@@ -505,8 +578,9 @@ class Canvas(QtWidgets.QGraphicsScene):
             if image_name not in self.points:
                 self.points[image_name] = {}
         if not self.classes:
-            self.add_class('Default')
+            self.add_class('Default', dirty=False)
             self.points_loaded.emit('')
+        self.dirty = False # Fresh folder load shouldn't be dirty
         if len(images) > 0:
             self.load_image(images[0])
 
@@ -519,6 +593,8 @@ class Canvas(QtWidgets.QGraphicsScene):
         file.close()
         self.survey_id = data['metadata']['survey_id']
 
+        is_legacy = 'version' not in data or data['version'] != '1.7.0-fork.2'
+
         # Backward compat
         if 'custom_fields' in data:
             self.custom_fields = data['custom_fields']
@@ -527,7 +603,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         if 'ui' in data:
             self.ui = data['ui']
         else:
-            self.ui = {'grid': {'size': 200, 'color': [255, 255, 255]}, 'point': {'radius': 25, 'color': [255, 255, 0]}}
+            self.ui = {'grid': {'size': 3, 'color': [255, 255, 255]}, 'point': {'radius': 3, 'color': [255, 255, 0]}}
         # End Backward compat
 
         self.colors = data['colors']
@@ -537,11 +613,36 @@ class Canvas(QtWidgets.QGraphicsScene):
         if 'points' in data:
             self.points = data['points']
 
+        first_image_dims = None
+
         for image in self.points:
-            for class_name in self.points[image]:
-                for p in range(len(self.points[image][class_name])):
-                    point = self.points[image][class_name][p]
-                    self.points[image][class_name][p] = QtCore.QPointF(point['x'], point['y'])
+            if is_legacy:
+                img_path = os.path.join(self.directory, image)
+                reader = QtGui.QImageReader(img_path)
+                size = reader.size()
+                w, h = size.width(), size.height()
+                if w > 0 and h > 0:
+                    if first_image_dims is None:
+                        first_image_dims = (w, h)
+                else:
+                    w, h = 1000, 1000  # Fallback
+                    
+                for class_name in self.points[image]:
+                    for p in range(len(self.points[image][class_name])):
+                        point = self.points[image][class_name][p]
+                        self.points[image][class_name][p] = QtCore.QPointF(point['x'] / w, point['y'] / h)
+            else:
+                for class_name in self.points[image]:
+                    for p in range(len(self.points[image][class_name])):
+                        point = self.points[image][class_name][p]
+                        self.points[image][class_name][p] = QtCore.QPointF(point['x'], point['y'])
+                        
+        if is_legacy and first_image_dims:
+            fw, fh = first_image_dims
+            diag = np.sqrt(fw**2 + fh**2)
+            self.ui['grid']['size'] = max(1, int(fw / max(1, self.ui['grid']['size'])))
+            self.ui['point']['radius'] = max(1, int((self.ui['point']['radius'] / diag) * 100.0))
+
         for class_name in data['colors']:
             self.colors[class_name] = QtGui.QColor(self.colors[class_name][0], self.colors[class_name][1], self.colors[class_name][2])
         self.points_loaded.emit(self.survey_id)
@@ -549,25 +650,54 @@ class Canvas(QtWidgets.QGraphicsScene):
         # Force rescan of working folder for new images
         self.load([QtCore.QUrl('file:{}'.format(self.directory))])
 
-    def package_points(self):
+    def package_points(self, legacy=False):
         count = 0
         package = {'classes': [], 'points': {}, 'colors': {}, 'metadata': {'survey_id': self.survey_id, 'coordinates': self.coordinates}, 'custom_fields': self.custom_fields, 'ui': self.ui}
+        
+        if not legacy:
+            package['version'] = '1.7.0-fork.2'
+            
         package['classes'] = self.classes
         for class_name in self.colors:
             r = self.colors[class_name].red()
             g = self.colors[class_name].green()
             b = self.colors[class_name].blue()
             package['colors'][class_name] = [r, g, b]
+            
+        first_img_dims = None
+            
         for image in self.points:
             package['points'][image] = {}
+            w, h = 1000, 1000
+            if legacy:
+                img_path = os.path.join(self.directory, image)
+                reader = QtGui.QImageReader(img_path)
+                size = reader.size()
+                tw, th = size.width(), size.height()
+                if tw > 0 and th > 0:
+                    w, h = tw, th
+                    if first_img_dims is None:
+                        first_img_dims = (w, h)
+                        
             for class_name in self.points[image]:
                 package['points'][image][class_name] = []
                 src = self.points[image][class_name]
                 dst = package['points'][image][class_name]
                 for point in src:
-                    p = {'x': point.x(), 'y': point.y()}
+                    if legacy:
+                        p = {'x': point.x() * w, 'y': point.y() * h}
+                    else:
+                        p = {'x': point.x(), 'y': point.y()}
                     dst.append(p)
                     count += 1
+                    
+        package['ui'] = {'grid': {'size': self.ui['grid']['size'], 'color': self.ui['grid']['color']}, 'point': {'radius': self.ui['point']['radius'], 'color': self.ui['point']['color']}}
+        if legacy and first_img_dims:
+            fw, fh = first_img_dims
+            diag = np.sqrt(fw**2 + fh**2)
+            package['ui']['grid']['size'] = max(1, int(fw / max(1, self.ui['grid']['size'])))
+            package['ui']['point']['radius'] = int((self.ui['point']['radius'] / 100.0) * diag)
+            
         return (package, count)
 
     def quick_save(self):
@@ -641,13 +771,14 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.dirty = False
         self.points = {}
         self.colors = {}
-        self.classes = []
+        self.visibility = {}
         self.classes = []
         self.selection = []
         self.redo_queue = []
         self.undo_queue = []
         self.coordinates = {}
         self.custom_fields = {'fields': [], 'data': {}}
+        self.color_index = 0
 
         self.clear()
         self.directory = ''
@@ -659,7 +790,9 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.image_loaded.emit('', '')
         self.directory_set.emit('')
         
-        self.add_class('Default')
+        self.add_class('Default', dirty=False)
+        self._dirty = False # Explicitly set internal state to avoid signal loop
+        self.dirty_changed.emit(False)
 
     def remove_class(self, class_name):
         index = self.classes.index(class_name)
@@ -671,13 +804,13 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.display_points()
         self.dirty = True
 
-    def save(self, override=False):
+    def save_as(self, override=False, legacy=False):
         file_name = QtWidgets.QFileDialog.getSaveFileName(self.parent(), self.tr('Save Points'), os.path.join(self.directory, 'untitled.pnt'), 'Point Files (*.pnt)')
         if file_name[0] != '':
             if override is False and self.directory != os.path.split(file_name[0])[0]:
                 QtWidgets.QMessageBox.warning(self.parent(), self.tr('ERROR'), self.tr('You are attempting to save the pnt file outside of the working directory. Operation canceled. POINT DATA NOT SAVED.'), QtWidgets.QMessageBox.StandardButton.Ok)
             else:
-                if self.save_points(file_name[0]) is False:
+                if self.save_points(file_name[0], legacy=legacy) is False:
                     msg_box = QtWidgets.QMessageBox()
                     msg_box.setWindowTitle(self.tr('ERROR'))
                     msg_box.setText(self.tr('Save Failed!'))
@@ -686,13 +819,24 @@ class Canvas(QtWidgets.QGraphicsScene):
                     msg_box.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Save)
                     response = msg_box.exec()
                     if response == QtWidgets.QMessageBox.StandardButton.Save:
-                        self.save(True)
+                        self.save_as(override=True, legacy=legacy)
                     else:
                         return False
                 self.previous_file_name = file_name[0]
                 self.clear_queues()
                 return True
+        return False
+        
+    def save_as_legacy(self):
+        self.save_as(override=False, legacy=True)
 
+    def save(self, override=False):
+        if self.previous_file_name and os.path.exists(os.path.split(self.previous_file_name)[0]):
+            self.save_points(self.previous_file_name)
+            self.clear_queues()
+            return True
+        else:
+            return self.save_as(override)
     def save_coordinates(self, x, y):
         if self.current_image_name is not None:
             if self.current_image_name not in self.coordinates:
@@ -706,9 +850,9 @@ class Canvas(QtWidgets.QGraphicsScene):
                 self.custom_fields['data'][field][self.current_image_name] = ''
             self.custom_fields['data'][field][self.current_image_name] = data
 
-    def save_points(self, file_name):
+    def save_points(self, file_name, legacy=False):
         try:
-            output, _ = self.package_points()
+            output, _ = self.package_points(legacy=legacy)
             file = open(file_name, 'w')
             json.dump(output, file, indent=2)
             file.close()
@@ -724,13 +868,21 @@ class Canvas(QtWidgets.QGraphicsScene):
         if not is_ctrl:
             self.selection = []
             
+        if self.pixmap is None:
+            return
+            
+        w = self.pixmap.width()
+        h = self.pixmap.height()
+            
         current = self.points[self.current_image_name]
         for class_name in current:
             for point in current[class_name]:
-                if rect.contains(point):
+                px = point.x() * w
+                py = point.y() * h
+                if rect.contains(QtCore.QPointF(px, py)):
                     found = False
                     for i, (sel_class, sel_point) in enumerate(self.selection):
-                        if sel_class == class_name and abs(sel_point.x() - point.x()) < 1e-4 and abs(sel_point.y() - point.y()) < 1e-4:
+                        if sel_class == class_name and abs(sel_point.x() - point.x()) < 1e-6 and abs(sel_point.y() - point.y()) < 1e-6:
                             found = True
                             if is_ctrl:
                                 self.selection.pop(i)
@@ -742,10 +894,14 @@ class Canvas(QtWidgets.QGraphicsScene):
 
     def set_current_class(self, class_index):
         if class_index is None or class_index >= len(self.classes):
-            self.current_class_name = None
+            self.set_current_class_by_name(None)
         else:
-            self.current_class_name = self.classes[class_index]
+            self.set_current_class_by_name(self.classes[class_index])
+
+    def set_current_class_by_name(self, class_name):
+        self.current_class_name = class_name
         self.display_points()
+        self.active_class_changed.emit(self.current_class_name if self.current_class_name else '')
 
     def set_grid_color(self, color):
         self.ui['grid']['color'] = [color.red(), color.green(), color.blue()]
@@ -771,35 +927,97 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.show_grid = False
             self.clear_grid()
 
-    def toggle_points(self, display):
-        if display:
+    def toggle_class_visibility(self, class_name):
+        if class_name in self.visibility:
+            self.visibility[class_name] = not self.visibility[class_name]
             self.display_points()
-            self.selection = []
-        else:
-            self.clear_points()
+            
+    def toggle_all_visibility(self, visible):
+        for class_name in self.visibility:
+            self.visibility[class_name] = visible
+        self.display_points()
+
+
 
     def undo(self):
         if len(self.undo_queue) > 0:
             event = self.undo_queue.pop()
             if event[0] == 'add':
-                self.points[self.current_image_name][event[1]].remove(event[2])
-                self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
+                if event[1] in self.points[self.current_image_name]:
+                    if event[2] in self.points[self.current_image_name][event[1]]:
+                        self.points[self.current_image_name][event[1]].remove(event[2])
+                    self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
                 self.display_points()
                 self.redo_queue.append(event)
             elif event[0] == 'delete':
                 for class_name, point in event[2]:
+                    if class_name not in self.points[self.current_image_name]:
+                        self.points[self.current_image_name][class_name] = []
                     self.points[self.current_image_name][class_name].append(point)
                     self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
                 self.display_points()
                 self.redo_queue.append(event)
             elif event[0] == 'relabel':
-                for class_name, point in event[2]:
-                    self.points[self.current_image_name][event[1]].remove(point)
+                # event[1] is new class, event[2] is list of (old_class, point)
+                for old_class, point in event[2]:
+                    if event[1] in self.points[self.current_image_name] and point in self.points[self.current_image_name][event[1]]:
+                        self.points[self.current_image_name][event[1]].remove(point)
                     self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                    self.points[self.current_image_name][class_name].append(point)
-                    self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
+                    if old_class not in self.points[self.current_image_name]:
+                        self.points[self.current_image_name][old_class] = []
+                    self.points[self.current_image_name][old_class].append(point)
+                    self.update_point_count.emit(self.current_image_name, old_class, len(self.points[self.current_image_name][old_class]))
                 self.display_points()
                 self.redo_queue.append(event)
+            self.dirty = True
+
+    def redo(self):
+        if len(self.redo_queue) > 0:
+            event = self.redo_queue.pop()
+            if event[0] == 'add':
+                # Re-add point: event[1]=class, event[2]=point
+                if event[1] not in self.points[self.current_image_name]:
+                    self.points[self.current_image_name][event[1]] = []
+                self.points[self.current_image_name][event[1]].append(event[2])
+                self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
+                self.display_points()
+                self.undo_queue.append(event)
+            elif event[0] == 'delete':
+                # Re-delete: event[2]=list of (class, point)
+                for class_name, point in event[2]:
+                    if class_name in self.points[self.current_image_name] and point in self.points[self.current_image_name][class_name]:
+                        self.points[self.current_image_name][class_name].remove(point)
+                    self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
+                self.display_points()
+                self.undo_queue.append(event)
+            elif event[0] == 'relabel':
+                # Re-relabel: event[1]=new class, event[2]=list of (old_class, point)
+                for old_class, point in event[2]:
+                    if old_class in self.points[self.current_image_name] and point in self.points[self.current_image_name][old_class]:
+                        self.points[self.current_image_name][old_class].remove(point)
+                    self.update_point_count.emit(self.current_image_name, old_class, len(self.points[self.current_image_name][old_class]))
+                    if event[1] not in self.points[self.current_image_name]:
+                        self.points[self.current_image_name][event[1]] = []
+                    self.points[self.current_image_name][event[1]].append(point)
+                    self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
+                self.display_points()
+                self.undo_queue.append(event)
+            self.dirty = True
+
+    def toggle_class_visibility(self, class_name):
+        self.visibility[class_name] = not self.visibility.get(class_name, True)
+        # Deselect any selected points of the hidden class
+        if not self.visibility[class_name] and hasattr(self, 'selection'):
+            self.selection = [(c, p) for c, p in self.selection if c != class_name]
+        self.display_points()
+
+    def toggle_all_visibility(self, visible):
+        for cn in self.visibility:
+            self.visibility[cn] = visible
+        # Deselect any selected points of hidden classes
+        if not visible and hasattr(self, 'selection'):
+            self.selection = []
+        self.display_points()
 
     def update_survey_id(self, text):
         self.survey_id = text

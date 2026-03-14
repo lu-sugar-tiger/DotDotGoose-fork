@@ -2,6 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson, 2026-03 — exception handler adjustments
 #
 # --------------------------------------------------------------------------
 #
@@ -25,7 +26,7 @@
 import sys
 import traceback
 from PyQt6 import QtCore
-DEBUG = False
+DEBUG = True
 
 
 class ExceptionHandler(QtCore.QObject):

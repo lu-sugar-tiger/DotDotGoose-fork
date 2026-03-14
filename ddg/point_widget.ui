@@ -1,4 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Modified by: Anson, 2026-03 — class editor column layout, sorting -->
 <ui version="4.0">
  <class>PointWidget</class>
  <widget class="QWidget" name="PointWidget">
@@ -33,7 +34,7 @@
          </column>
          <column>
           <property name="text">
-           <string/>
+           <string />
           </property>
          </column>
         </widget>
@@ -115,7 +116,7 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <widget class="QTreeView" name="treeView"/>
+        <widget class="QTreeView" name="treeView" />
        </item>
       </layout>
      </widget>
@@ -130,7 +131,7 @@
       <item row="1" column="0" colspan="3">
        <widget class="QGroupBox" name="groupBox">
         <property name="title">
-         <string>Enhance Image</string>
+         <string>Temporary Adjustment</string>
         </property>
         <layout class="QGridLayout" name="gridLayout">
          <item row="0" column="0">
@@ -209,22 +210,7 @@
       </item>
       <item row="3" column="0" colspan="3">
        <layout class="QGridLayout" name="gridLayout_3">
-        <item row="0" column="5">
-         <widget class="QCheckBox" name="checkBoxDisplayPoints">
-          <property name="toolTip">
-           <string>Display points.</string>
-          </property>
-          <property name="layoutDirection">
-           <enum>Qt::RightToLeft</enum>
-          </property>
-          <property name="text">
-           <string>Display</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
+
         <item row="1" column="5">
          <widget class="QCheckBox" name="checkBoxDisplayGrid">
           <property name="toolTip">
@@ -237,7 +223,7 @@
            <string>Display</string>
           </property>
           <property name="checked">
-           <bool>true</bool>
+           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -267,13 +253,13 @@
            <number>1</number>
           </property>
           <property name="maximum">
-           <number>50</number>
+           <number>10</number>
           </property>
           <property name="singleStep">
            <number>1</number>
           </property>
           <property name="value">
-           <number>25</number>
+           <number>3</number>
           </property>
          </widget>
         </item>
@@ -296,37 +282,31 @@
            <string>Grid color. Click to change.</string>
           </property>
           <property name="text">
-           <string/>
+           <string />
           </property>
          </widget>
         </item>
-        <item row="0" column="4">
-         <widget class="QLabel" name="labelPointColor">
-          <property name="toolTip">
-           <string>Active class point color. Click to change.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
+
         <item row="1" column="0">
          <widget class="QSpinBox" name="spinBoxGrid">
+          <property name="minimum">
+           <number>1</number>
+          </property>
           <property name="maximum">
-           <number>1000</number>
+           <number>10</number>
           </property>
           <property name="singleStep">
-           <number>50</number>
+           <number>1</number>
           </property>
           <property name="value">
-           <number>200</number>
+           <number>3</number>
           </property>
          </widget>
         </item>
         <item row="1" column="1">
          <widget class="QLabel" name="label_3">
           <property name="text">
-           <string>Grid Size</string>
+           <string>Grid Divisions</string>
           </property>
          </widget>
         </item>
@@ -336,46 +316,6 @@
        <widget class="Line" name="line_2">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0" rowspan="2">
-       <widget class="QPushButton" name="pushButtonLoadPoints">
-        <property name="toolTip">
-         <string>Load point file.</string>
-        </property>
-        <property name="text">
-         <string>Load</string>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>:/icons/load.svg</normaloff>:/icons/load.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>24</width>
-          <height>24</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="2" rowspan="2">
-       <widget class="QPushButton" name="pushButtonSave">
-        <property name="toolTip">
-         <string>Save point file.</string>
-        </property>
-        <property name="text">
-         <string>Save</string>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>:/icons/save.svg</normaloff>:/icons/save.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>24</width>
-          <height>24</height>
-         </size>
         </property>
        </widget>
       </item>
@@ -392,26 +332,6 @@
         </property>
        </spacer>
       </item>
-      <item row="7" column="0">
-       <widget class="QPushButton" name="pushButtonImport">
-        <property name="toolTip">
-         <string>Import classes and custom fields from existing point file.</string>
-        </property>
-        <property name="text">
-         <string>Import</string>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>:/icons/import.svg</normaloff>:/icons/import.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>24</width>
-          <height>24</height>
-         </size>
-        </property>
-       </widget>
-      </item>
       <item row="7" column="1">
        <spacer name="horizontalSpacer_7">
         <property name="orientation">
@@ -425,100 +345,11 @@
         </property>
        </spacer>
       </item>
-      <item row="7" column="2">
-       <widget class="QPushButton" name="pushButtonReset">
-        <property name="toolTip">
-         <string>Reset point file.</string>
-        </property>
-        <property name="text">
-         <string>Reset</string>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>:/icons/reset.svg</normaloff>:/icons/reset.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>24</width>
-          <height>24</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="8" column="0" colspan="3">
-       <widget class="Line" name="line">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="0" rowspan="2" colspan="2">
-       <layout class="QGridLayout" name="gridLayout_2">
-        <item row="0" column="0">
-         <widget class="QRadioButton" name="radioButtonCounts">
-          <property name="text">
-           <string>Counts</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QRadioButton" name="radioButtonChips">
-          <property name="text">
-           <string>Chips</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QRadioButton" name="radioButtonPoints">
-          <property name="text">
-           <string>Points</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QRadioButton" name="radioButtonOverlay">
-          <property name="text">
-           <string>Overlay</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item row="10" column="2">
-       <widget class="QPushButton" name="pushButtonExport">
-        <property name="toolTip">
-         <string>Export</string>
-        </property>
-        <property name="text">
-         <string>Export</string>
-        </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>:/icons/export.svg</normaloff>:/icons/export.svg</iconset>
-        </property>
-        <property name="iconSize">
-         <size>
-          <width>24</width>
-          <height>24</height>
-         </size>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0" colspan="3">
-       <widget class="QCheckBox" name="checkBoxImageFields">
-        <property name="text">
-         <string>Hide Image Data / Custom Fields</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
+      </layout>
     </widget>
    </item>
   </layout>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

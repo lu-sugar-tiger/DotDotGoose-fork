@@ -2,6 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson, 2026-03 — menu restructuring, status bar layout
 #
 # --------------------------------------------------------------------------
 #
@@ -45,6 +46,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menuBar().setNativeMenuBar(False)
         menu = self.menuBar().addMenu(self.tr('File'))
         menu.setObjectName('File')
+        
+        # New options
+        menu.addAction(self.tr('Open Folder'), self.centralWidget().select_folder)
+        menu.addAction(self.tr('Load Project'), self.centralWidget().point_widget.load)
+        menu.addAction(self.tr('Import Configuration'), self.centralWidget().point_widget.import_metadata)
+        menu.addSeparator()
+        menu.addAction(self.tr('Save'), self.centralWidget().canvas.save)
+        menu.addAction(self.tr('Save as...'), self.centralWidget().canvas.save_as)
+        menu.addAction(self.tr('Save as Legacy Version'), self.centralWidget().canvas.save_as_legacy)
+        menu.addSeparator()
+        menu.addAction(self.tr('Export All Counts'), self.centralWidget().point_widget.export_counts)
+        menu.addAction(self.tr('Export All Points'), self.centralWidget().point_widget.export_points)
+        menu.addAction(self.tr('Export All Chips'), self.centralWidget().point_widget.export_chips)
+        menu.addAction(self.tr('Export All Overlays'), self.centralWidget().point_widget.export_all_overlays)
+        menu.addAction(self.tr('Export Single Overlay'), self.centralWidget().point_widget.export_single_overlay)
+        menu.addSeparator()
+        menu.addAction(self.tr('Reset Project'), self.centralWidget().point_widget.reset)
+        menu.addSeparator()
+        
         menu.addAction(self.tr('Quit'), self.quit)
 
         menu = self.menuBar().addMenu(self.tr('Language'))

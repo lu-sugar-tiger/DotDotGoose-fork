@@ -8,3 +8,13 @@ doc/source/_build/
 .vscode/
 __pycache__/
 setup.cfg
+*.log
+*.spec
+error.txt
+xml_err.txt
+check_xml.py
+debug_ui.py
+fix.py
+modify_*.py
+verify_export.py
+.agents/

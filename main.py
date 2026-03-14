@@ -3,6 +3,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
+# Modified by: Anson, 2026-03 — maximized window on launch
 #
 # --------------------------------------------------------------------------
 #
@@ -55,12 +56,5 @@ if __name__ == '__main__':
     main = MainWindow()
     handler = ExceptionHandler()
     handler.exception.connect(main.display_exception)
-    main.show()
-    screen = app.primaryScreen()
-    for s in app.screens():
-        if screen.geometry().width() < s.geometry().width():
-            screen = s
-    main.windowHandle().setScreen(screen)
-    main.resize(int(screen.geometry().width()), int(screen.geometry().height() * 0.85))
-
+    main.showMaximized()
     sys.exit(app.exec())

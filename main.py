@@ -26,22 +26,32 @@
 # --------------------------------------------------------------------------
 import os
 import sys
-from PyQt6 import QtWidgets, QtCore
+import ctypes
+from PyQt6 import QtWidgets, QtCore, QtGui
 from ddg import ExceptionHandler, MainWindow, DarkModePalette
 
 if __name__ == '__main__':
+    if sys.platform == 'win32':
+        myappid = 'amnh.dotdotgoose.app.1.7.0'
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass
+            
     app = QtWidgets.QApplication(sys.argv)
+    # Register search paths BEFORE constructing MainWindow so icons resolve correctly
     if getattr(sys, 'frozen', False):
         QtCore.QDir.addSearchPath('icons', os.path.join(sys._MEIPASS, 'icons'))
         QtCore.QDir.addSearchPath('i18n', os.path.join(sys._MEIPASS, 'i18n'))
     else:
         QtCore.QDir.addSearchPath('icons', './icons/')
         QtCore.QDir.addSearchPath('i18n', './i18n/')
+        
+    app.setWindowIcon(QtGui.QIcon('icons:ddg.png'))
 
     app.setStyle('fusion')
     if app.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark:
         app.setPalette(DarkModePalette())
-        # Palette colors are not honored by Qt6.5.3
         app.setStyleSheet("QToolTip { color: #ffffff; background-color: #000000; border: 0px; padding: 2px}")
 
     settings = QtCore.QSettings("AMNH", "DotDotGoose")
@@ -56,5 +66,5 @@ if __name__ == '__main__':
     main = MainWindow()
     handler = ExceptionHandler()
     handler.exception.connect(main.display_exception)
-    main.showMaximized()
+    main.show()
     sys.exit(app.exec())

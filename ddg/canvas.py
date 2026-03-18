@@ -26,6 +26,7 @@
 # --------------------------------------------------------------------------
 import os
 import json
+import datetime
 import glob
 import numpy as np
 
@@ -35,7 +36,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 class Canvas(QtWidgets.QGraphicsScene):
     image_loading = QtCore.pyqtSignal(bool, bool)  # Params (Large image, redraw)
-    image_loaded = QtCore.pyqtSignal(str, str)  # Params (directory, image_name)
+    image_loaded = QtCore.pyqtSignal(str, str, bool)  # Params (directory, image_name, is_redraw)
     points_loaded = QtCore.pyqtSignal(str)  # Params(survey_id)
     directory_set = QtCore.pyqtSignal(str)  # Params (directory)
     fields_updated = QtCore.pyqtSignal(list)
@@ -57,7 +58,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.selection = []
         self.redo_queue = []
         self.undo_queue = []
-        self.ui = {'grid': {'size': 3, 'color': [255, 255, 255]}, 'point': {'radius': 3, 'color': [255, 255, 0]}}
+        self.ui = {'grid': {'size': 5, 'color': [255, 255, 255]}, 'point': {'radius': 5, 'color': [255, 255, 0]}, 'guideline': {'color': [0, 255, 255]}}
 
         self.survey_id = ''
 
@@ -66,10 +67,18 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.current_image_name = None
         self.current_class_name = None
         self.pixmap = None
+        self.current_w = 0
+        self.current_h = 0
 
         self.image_cache = {'file_name': '', 'channels': 0, 'data': None}
         self.LUT = np.array([x for x in range(0, 256)], dtype=np.uint8)
-        self.show_grid = False
+        self.show_grid = True
+        self.show_guidelines = True
+        self.show_points = True
+        self.visibility = {}
+        self.image_data = {}  # per-image: transforms + guidelines
+        self.guideline_items = []  # scene items for current guides
+        self.grid_items = []       # scene items for current grid
 
         self.palette = [
             QtGui.QColor(255, 0, 0),       # Red
@@ -96,6 +105,224 @@ class Canvas(QtWidgets.QGraphicsScene):
             self._dirty = value
             self.dirty_changed.emit(value)
 
+    # -- Per-image data helpers -----------------------------------------------
+
+    def _default_image_data(self):
+        return {'transform': {'rotation': 0, 'flip_h': False, 'flip_v': False},
+                'guidelines': {'horizontal': [], 'vertical': []}}
+
+    def _get_image_data(self, image_name=None):
+        name = image_name or self.current_image_name
+        if name not in self.image_data:
+            self.image_data[name] = self._default_image_data()
+        return self.image_data[name]
+
+    def _get_current_transform(self):
+        if self.current_image_name:
+            return self._get_image_data()['transform']
+        return {'rotation': 0, 'flip_h': False, 'flip_v': False}
+
+    # -- Coordinate transform helpers -----------------------------------------
+
+    def _transform_point(self, x_ratio, y_ratio):
+        """Original stored ratio → display ratio (for rendering)."""
+        t = self._get_current_transform()
+        x, y = x_ratio, y_ratio
+        # Apply rotation (CW)
+        for _ in range(t['rotation'] // 90):
+            x, y = 1.0 - y, x
+        # Apply flips (after rotation)
+        if t['flip_h']:
+            x = 1.0 - x
+        if t['flip_v']:
+            y = 1.0 - y
+        return x, y
+
+    def _inverse_transform_point(self, x_ratio, y_ratio):
+        """Display ratio → original stored ratio (for storing new points)."""
+        t = self._get_current_transform()
+        x, y = x_ratio, y_ratio
+        # Undo flips first (reverse of apply order)
+        if t['flip_v']:
+            y = 1.0 - y
+        if t['flip_h']:
+            x = 1.0 - x
+        # Undo rotation (CCW = 4 - n times CW)
+        ccw = (4 - (t['rotation'] // 90)) % 4
+        for _ in range(ccw):
+            x, y = 1.0 - y, x
+        return x, y
+
+    def _apply_array_transform(self, array):
+        """Apply current image transform to numpy array for display."""
+        t = self._get_current_transform()
+        result = array
+        if t['rotation']:
+            k = t['rotation'] // 90
+            result = np.rot90(result, k=4 - k)  # np.rot90 is CCW, we want CW
+        if t['flip_h']:
+            result = np.fliplr(result)
+        if t['flip_v']:
+            result = np.flipud(result)
+        return np.ascontiguousarray(result)
+
+    # -- Transform actions (called from UI buttons) ---------------------------
+
+    def rotate_current_image(self):
+        if not self.current_image_name:
+            return
+        t = self._get_image_data()['transform']
+        t['rotation'] = (t['rotation'] + 90) % 360
+        self.dirty = True
+        self.image_cache['file_name'] = ''  # force reload
+        self.redraw_image()
+
+    def flip_h_current_image(self):
+        if not self.current_image_name:
+            return
+        t = self._get_image_data()['transform']
+        t['flip_h'] = not t['flip_h']
+        self.dirty = True
+        self.image_cache['file_name'] = ''
+        self.redraw_image()
+
+    def flip_v_current_image(self):
+        if not self.current_image_name:
+            return
+        t = self._get_image_data()['transform']
+        t['flip_v'] = not t['flip_v']
+        self.dirty = True
+        self.image_cache['file_name'] = ''
+        self.redraw_image()
+
+    def reset_transform_current_image(self):
+        if not self.current_image_name:
+            return
+        data = self._get_image_data()
+        data['transform'] = {'rotation': 0, 'flip_h': False, 'flip_v': False}
+        self.dirty = True
+        self.image_cache['file_name'] = ''
+        self.redraw_image()
+
+    # -- Guideline actions ----------------------------------------------------
+
+    def get_guidelines(self):
+        if not self.current_image_name:
+            return {'horizontal': [], 'vertical': []}
+        return self._get_image_data()['guidelines']
+
+    def add_guideline(self, orientation, ratio):
+        """Add a guide line. orientation: 'horizontal' or 'vertical'. ratio: can be outside 0.0-1.0. Returns new index or -1."""
+        if not self.current_image_name:
+            return -1
+        guides = self.get_guidelines()
+        if len(guides[orientation]) >= 10:
+            return -1
+        guides[orientation].append(ratio)
+        self.dirty = True
+        self.display_guidelines()
+        return len(guides[orientation]) - 1
+
+    def move_guideline(self, orientation, index, new_ratio):
+        guides = self.get_guidelines()
+        if 0 <= index < len(guides[orientation]):
+            guides[orientation][index] = new_ratio
+            self.dirty = True
+            self.display_guidelines()
+
+    def remove_guideline(self, orientation, index):
+        guides = self.get_guidelines()
+        if 0 <= index < len(guides[orientation]):
+            guides[orientation].pop(index)
+            self.dirty = True
+            self.display_guidelines()
+
+    def set_guideline_color(self, color):
+        self.ui['guideline']['color'] = [color.red(), color.green(), color.blue()]
+        self.display_guidelines()
+
+    def toggle_guidelines(self, display):
+        self.show_guidelines = display
+        self.display_guidelines()
+
+    def toggle_points(self, display):
+        self.show_points = display
+        self.display_points()
+
+    def clear_all_items(self):
+        """Safely clear the entire scene and all internal item trackers."""
+        self.clear()
+        self.guideline_items = []
+        self.grid_items = []
+
+    def clear_guidelines(self):
+        for item in self.guideline_items:
+            try:
+                if item.scene() == self:
+                    self.removeItem(item)
+            except RuntimeError:
+                pass
+        self.guideline_items = []
+
+    def clear_grid(self):
+        for item in self.grid_items:
+            try:
+                if item.scene() == self:
+                    self.removeItem(item)
+            except RuntimeError:
+                pass
+        self.grid_items = []
+
+    def display_guidelines(self):
+        self.clear_guidelines()
+        if not self.current_image_name or not self.show_guidelines or self.current_w <= 0:
+            return
+        guides = self.get_guidelines()
+        gc = self.ui['guideline']['color']
+        guide_color = QtGui.QColor(gc[0], gc[1], gc[2])
+        line_width = max(1, (1.0 / 1000.0) * self.current_w if self.current_w > 0 else 1) # Fallback if diag not handy, but better use diag
+        diag = np.sqrt(self.current_w**2 + self.current_h**2)
+        line_width = max(1, (1.0 / 2000.0) * diag)
+        pen = QtGui.QPen(guide_color, 1.0, QtCore.Qt.PenStyle.SolidLine)
+        pen.setWidthF(line_width)
+        pen.setCosmetic(False)
+        w = self.current_w
+        h = self.current_h
+        
+        # Horizontal stored guides
+        for i, y_ratio in enumerate(guides['horizontal']):
+            tx0, ty0 = self._transform_point(0.0, y_ratio)
+            tx1, ty1 = self._transform_point(1.0, y_ratio)
+            
+            if abs(ty0 - ty1) < 1e-4: # Horizontal display
+                y = ty0 * h
+                line = self.addLine(QtCore.QLineF(-1000000, y, 1000000, y), pen)
+            else: # Vertical display
+                x = tx0 * w
+                line = self.addLine(QtCore.QLineF(x, -1000000, x, 1000000), pen)
+            line.setZValue(50)
+            line._orientation = 'horizontal'
+            line._index = i
+            line._orig_ratio = y_ratio
+            self.guideline_items.append(line)
+            
+        # Vertical stored guides
+        for i, x_ratio in enumerate(guides['vertical']):
+            tx0, ty0 = self._transform_point(x_ratio, 0.0)
+            tx1, ty1 = self._transform_point(x_ratio, 1.0)
+            
+            if abs(tx0 - tx1) < 1e-4: # Vertical display
+                x = tx0 * w
+                line = self.addLine(QtCore.QLineF(x, -1000000, x, 1000000), pen)
+            else: # Horizontal display
+                y = ty0 * h
+                line = self.addLine(QtCore.QLineF(-1000000, y, 1000000, y), pen)
+            line.setZValue(50)
+            line._orientation = 'vertical'
+            line._index = i
+            line._orig_ratio = x_ratio
+            self.guideline_items.append(line)
+
     def add_class(self, class_name, dirty=True):
         if class_name not in self.classes:
             self.classes.append(class_name)
@@ -114,24 +341,31 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.dirty = True
 
     def add_point(self, point):
-        if self.current_image_name is not None and self.current_class_name is not None and self.pixmap is not None:
+        if not self.show_points or not self.visibility.get(self.current_class_name, True):
+            return
+            
+        if self.current_image_name is not None and self.current_class_name is not None and self.current_w > 0:
             if self.current_class_name not in self.points[self.current_image_name]:
                 self.points[self.current_image_name][self.current_class_name] = []
                 
-            w = self.pixmap.width()
-            h = self.pixmap.height()
+            w = self.current_w
+            h = self.current_h
             diag = np.sqrt(w**2 + h**2)
             
-            # Store point internally as a ratio [0~1, 0~1]
-            ratio_point = QtCore.QPointF(point.x() / w, point.y() / h)
+            # Inverse-transform display position to original ratio for storage
+            display_ratio_x = point.x() / w
+            display_ratio_y = point.y() / h
+            orig_x, orig_y = self._inverse_transform_point(display_ratio_x, display_ratio_y)
+            ratio_point = QtCore.QPointF(orig_x, orig_y)
             self.points[self.current_image_name][self.current_class_name].append(ratio_point)
             
             if self.visibility.get(self.current_class_name, True):
-                display_radius = (self.ui['point']['radius'] * 0.5 / 100.0) * diag
+                display_radius = (self.ui['point']['radius'] / 500.0) * diag
                 display_radius = max(1, display_radius)
                 brush = QtGui.QBrush(self.colors[self.current_class_name], QtCore.Qt.BrushStyle.SolidPattern)
                 pen = QtGui.QPen(brush, 2)
                 item = self.addEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
+                item.setZValue(100)
                 item._class_name = self.current_class_name
                 item._point = ratio_point
             self.update_point_count.emit(self.current_image_name, self.current_class_name, len(self.points[self.current_image_name][self.current_class_name]))
@@ -143,14 +377,22 @@ class Canvas(QtWidgets.QGraphicsScene):
                 self.display_points()
 
     def clear_grid(self):
-        for graphic in self.items():
-            if isinstance(graphic, QtWidgets.QGraphicsLineItem):
-                self.removeItem(graphic)
+        for item in self.grid_items:
+            try:
+                if item.scene() == self:
+                    self.removeItem(item)
+            except RuntimeError:
+                pass
+        self.grid_items = []
 
     def clear_points(self):
         for graphic in self.items():
             if isinstance(graphic, QtWidgets.QGraphicsEllipseItem):
-                self.removeItem(graphic)
+                try:
+                    if graphic.scene() == self:
+                        self.removeItem(graphic)
+                except RuntimeError:
+                    pass
 
     def clear_queues(self):
         self.redo_queue = []
@@ -222,37 +464,48 @@ class Canvas(QtWidgets.QGraphicsScene):
 
     def display_grid(self):
         self.clear_grid()
-        if self.current_image_name and self.show_grid and self.pixmap is not None:
-            w = self.pixmap.width()
-            h = self.pixmap.height()
+        if self.current_image_name and self.show_grid and self.current_w > 0:
+            w = self.current_w
+            h = self.current_h
             
             grid_color = QtGui.QColor(self.ui['grid']['color'][0], self.ui['grid']['color'][1], self.ui['grid']['color'][2])
             grid_cols = max(1, int(self.ui['grid']['size']))
             
-            rect = self.itemsBoundingRect()
-            draw_w = rect.width()
-            draw_h = rect.height()
+            draw_w = w
+            draw_h = h
             x_step = draw_w / grid_cols
             y_step = draw_h / grid_cols
             
+            diag = np.sqrt(w**2 + h**2)
+            line_width = max(1, (1.0 / 2000.0) * diag)
+            
             brush = QtGui.QBrush(grid_color, QtCore.Qt.BrushStyle.SolidPattern)
-            pen = QtGui.QPen(brush, 1)
+            pen = QtGui.QPen(brush, 1.0)
+            pen.setWidthF(line_width)
+            pen.setCosmetic(False)
             for i in range(1, grid_cols):
                 x = i * x_step
                 line = QtCore.QLineF(x, 0.0, x, draw_h)
-                self.addLine(line, pen)
+                l_item = self.addLine(line, pen)
+                l_item.setZValue(10)
+                self.grid_items.append(l_item)
             for i in range(1, grid_cols):
                 y = i * y_step
-                line = QtCore.QLineF(0.0, y, draw_w, y)
-                self.addLine(line, pen)
+                line_obj = QtCore.QLineF(0.0, y, draw_w, y)
+                line = self.addLine(line_obj, pen)
+                line.setZValue(10)
+                self.grid_items.append(line)
 
     def display_points(self):
         self.clear_points()
-        if self.current_image_name in self.points and self.pixmap is not None:
-            w = self.pixmap.width()
-            h = self.pixmap.height()
+        if not self.show_points:
+            return
+            
+        if self.current_image_name in self.points and self.current_w > 0:
+            w = self.current_w
+            h = self.current_h
             diag = np.sqrt(w**2 + h**2)
-            display_radius = (self.ui['point']['radius'] * 0.5 / 100.0) * diag
+            display_radius = (self.ui['point']['radius'] / 500.0) * diag
             display_radius = max(1, display_radius)
 
             # Build set of selected points for fast lookup
@@ -279,27 +532,27 @@ class Canvas(QtWidgets.QGraphicsScene):
                     else:
                         brush = QtGui.QBrush(base_color, QtCore.Qt.BrushStyle.SolidPattern)
                         pen = QtGui.QPen(brush, 2)
-                    draw_x = point.x() * w
-                    draw_y = point.y() * h
+                    # Transform stored ratio to display position
+                    tx, ty = self._transform_point(point.x(), point.y())
+                    draw_x = tx * w
+                    draw_y = ty * h
                     item = self.addEllipse(QtCore.QRectF(draw_x - ((display_radius - 1) / 2), draw_y - ((display_radius - 1) / 2), display_radius, display_radius), pen, brush)
+                    item.setZValue(100)
                     item._class_name = class_name
                     item._point = point
 
     def update_point_positions(self, items_to_move, dx, dy):
-        if self.current_image_name is None or self.pixmap is None:
+        if self.current_image_name is None:
             return
-            
-        w = self.pixmap.width()
-        h = self.pixmap.height()
-        r_dx = dx / w
-        r_dy = dy / h
             
         for class_name, old_point in items_to_move:
             if class_name in self.points[self.current_image_name]:
                 points_list = self.points[self.current_image_name][class_name]
                 for i, p in enumerate(points_list):
                     if p.x() == old_point.x() and p.y() == old_point.y():
-                        new_p = QtCore.QPointF(p.x() + r_dx, p.y() + r_dy)
+                        # The incoming dx and dy are ratio deltas calculated
+                        # in the graphics view based on inverse-transformed mouse movement.
+                        new_p = QtCore.QPointF(p.x() + dx, p.y() + dy)
                         points_list[i] = new_p
                         
                         # Update selection if this point was selected
@@ -443,6 +696,20 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.ui = data['ui']
         else:
             self.ui = {'grid': {'size': 3, 'color': [255, 255, 255]}, 'point': {'radius': 3, 'color': [255, 255, 0]}}
+        # Ensure guideline key exists (added in fork.2)
+        if 'guideline' not in self.ui:
+            self.ui['guideline'] = {'color': [0, 255, 255]}
+        # Load per-image data (transforms + guidelines)
+        if 'image_data' in data:
+            # Merge or overwrite image_data
+            for k, v in data['image_data'].items():
+                self.image_data[k] = v
+        
+        # Ensure the UI reflects the loaded state immediately
+        self.display_grid()
+        self.display_guidelines()
+        self.display_points()
+
         # End Backward compat
 
         self.colors = data['colors']
@@ -507,7 +774,10 @@ class Canvas(QtWidgets.QGraphicsScene):
         if self.directory == os.path.split(file_name)[0]:
             QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
             self.selection = []
-            self.clear()
+            self.clear_all_items()
+            self.pixmap = None
+            self.current_w = 0
+            self.current_h = 0
             self.current_image_name = os.path.split(file_name)[1]
             if self.current_image_name not in self.points:
                 self.points[self.current_image_name] = {}
@@ -520,6 +790,9 @@ class Canvas(QtWidgets.QGraphicsScene):
                     img.close()
                 channels = self.image_cache['channels']
                 array = self.image_cache['data']
+                # Apply per-image transform for display
+                array = self._apply_array_transform(array)
+                self.current_h, self.current_w = array.shape[:2]
                 if not redraw:
                     self.generate_lookup_table(0, 0)
                 if array.shape[0] > 10000 or array.shape[1] > 10000:
@@ -528,18 +801,25 @@ class Canvas(QtWidgets.QGraphicsScene):
                     stride = 100
                     max_stride = (array.shape[1] // stride) * stride
                     tail = array.shape[1] - max_stride
-                    tile = np.zeros((array.shape[0], stride, array.shape[2]), dtype=np.uint8)
+                    tile_channels = array.shape[2] if array.ndim == 3 else 1
+                    tile = np.zeros((array.shape[0], stride, tile_channels), dtype=np.uint8)
                     for s in range(0, max_stride, stride):
                         tile[:, :] = self.LUT[array[:, s:s + stride]]
-                        qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_RGB888)
+                        if tile_channels == 1:
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_Grayscale8)
+                        else:
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_RGB888)
                         pixmap = QtGui.QPixmap.fromImage(qt_image)
                         item = self.addPixmap(pixmap)
                         item.moveBy(s, 0)
                     # Fix for windows, thin slivers at the end cause the app to hang. QImage bug?
                     if tail > 0:
-                        tile = np.ones((array.shape[0], stride, array.shape[2]), dtype=np.uint8) * 255
+                        tile = np.ones((array.shape[0], stride, tile_channels), dtype=np.uint8) * 255
                         tile[:, 0:tail] = array[:, max_stride:array.shape[1]]
-                        qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_RGB888)
+                        if tile_channels == 1:
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_Grayscale8)
+                        else:
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_RGB888)
                         pixmap = QtGui.QPixmap.fromImage(qt_image)
                         item = self.addPixmap(pixmap)
                         item.moveBy(max_stride, 0)
@@ -555,17 +835,21 @@ class Canvas(QtWidgets.QGraphicsScene):
                         else:
                             qt_image = QtGui.QImage(array.data, array.shape[1], array.shape[0], bpl, QtGui.QImage.Format.Format_RGB888)
                     self.pixmap = QtGui.QPixmap.fromImage(qt_image)
+                    self.current_w = self.pixmap.width()
+                    self.current_h = self.pixmap.height()
                     self.addPixmap(self.pixmap)
                 self.display_external_annotations(file_name)
                 self.display_grid()
+                self.display_guidelines()
                 self.display_points()
             except FileNotFoundError:
                 QtWidgets.QMessageBox.critical(None, self.tr('File Not Found'), '{} {}'.format(self.current_image_name, self.tr('is not in the same folder as the point file.')))
                 if not redraw:
-                    self.image_loaded.emit(self.directory, self.current_image_name)
-            if not redraw:
-                self.image_loaded.emit(self.directory, self.current_image_name)
-                self.clear_queues()
+                    self.image_loaded.emit(self.directory, self.current_image_name, False)
+            else:
+                self.image_loaded.emit(self.directory, self.current_image_name, redraw)
+                if not redraw:
+                    self.clear_queues()
             QtWidgets.QApplication.restoreOverrideCursor()
 
     def load_images(self, images):
@@ -585,8 +869,8 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.load_image(images[0])
 
     def load_points(self, file_name):
-        self.reset()
-        self.directory = os.path.split(file_name)[0]
+        self.clear_all_items()
+        self.directory = os.path.dirname(file_name)
         file = open(file_name, 'r')
         self.previous_file_name = file_name
         data = json.load(file)
@@ -604,6 +888,20 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.ui = data['ui']
         else:
             self.ui = {'grid': {'size': 3, 'color': [255, 255, 255]}, 'point': {'radius': 3, 'color': [255, 255, 0]}}
+        # Ensure guideline key exists (added in fork.2)
+        if 'guideline' not in self.ui:
+            self.ui['guideline'] = {'color': [0, 255, 255]}
+        # Load per-image data (transforms + guidelines)
+        if 'image_data' in data:
+            # Merge or overwrite image_data
+            for k, v in data['image_data'].items():
+                self.image_data[k] = v
+        
+        # Ensure the UI reflects the loaded state immediately
+        self.display_grid()
+        self.display_guidelines()
+        self.display_points()
+
         # End Backward compat
 
         self.colors = data['colors']
@@ -691,12 +989,26 @@ class Canvas(QtWidgets.QGraphicsScene):
                     dst.append(p)
                     count += 1
                     
-        package['ui'] = {'grid': {'size': self.ui['grid']['size'], 'color': self.ui['grid']['color']}, 'point': {'radius': self.ui['point']['radius'], 'color': self.ui['point']['color']}}
+        package['ui'] = {'grid': {'size': self.ui['grid']['size'], 'color': self.ui['grid']['color']}, 'point': {'radius': self.ui['point']['radius'], 'color': self.ui['point']['color']}, 'guideline': {'color': self.ui['guideline']['color']}}
+        if not legacy:
+            # Serialize per-image data (transforms + guidelines)
+            package['image_data'] = {}
+            for img_name, img_data in self.image_data.items():
+                # Only store entries with non-default values
+                t = img_data.get('transform', {})
+                g = img_data.get('guidelines', {})
+                has_transform = t.get('rotation', 0) != 0 or t.get('flip_h', False) or t.get('flip_v', False)
+                has_guides = len(g.get('horizontal', [])) > 0 or len(g.get('vertical', [])) > 0
+                if has_transform or has_guides:
+                    package['image_data'][img_name] = img_data
         if legacy and first_img_dims:
             fw, fh = first_img_dims
             diag = np.sqrt(fw**2 + fh**2)
             package['ui']['grid']['size'] = max(1, int(fw / max(1, self.ui['grid']['size'])))
             package['ui']['point']['radius'] = int((self.ui['point']['radius'] / 100.0) * diag)
+            # Remove guideline from legacy output
+            if 'guideline' in package['ui']:
+                del package['ui']['guideline']
             
         return (package, count)
 
@@ -707,28 +1019,6 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.saving.emit()
             self.save_points(self.previous_file_name)
 
-    def redo(self):
-        if len(self.redo_queue) > 0:
-            event = self.redo_queue.pop()
-            if event[0] == 'add':
-                self.points[self.current_image_name][event[1]].append(event[2])
-                self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                self.display_points()
-                self.undo_queue.append(event)
-            elif event[0] == 'delete':
-                for class_name, point in event[2]:
-                    self.points[self.current_image_name][class_name].remove(point)
-                    self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
-                self.display_points()
-                self.undo_queue.append(event)
-            elif event[0] == 'relabel':
-                for class_name, point in event[2]:
-                    self.points[self.current_image_name][class_name].remove(point)
-                    self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
-                    self.points[self.current_image_name][event[1]].append(point)
-                self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                self.display_points()
-                self.undo_queue.append(event)
 
     def redraw_image(self):
         if self.directory != '':
@@ -772,6 +1062,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.points = {}
         self.colors = {}
         self.visibility = {}
+        self.image_data = {}
         self.classes = []
         self.selection = []
         self.redo_queue = []
@@ -790,6 +1081,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.image_loaded.emit('', '')
         self.directory_set.emit('')
         
+        self.show_guidelines = True
         self.add_class('Default', dirty=False)
         self._dirty = False # Explicitly set internal state to avoid signal loop
         self.dirty_changed.emit(False)
@@ -805,7 +1097,11 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.dirty = True
 
     def save_as(self, override=False, legacy=False):
-        file_name = QtWidgets.QFileDialog.getSaveFileName(self.parent(), self.tr('Save Points'), os.path.join(self.directory, 'untitled.pnt'), 'Point Files (*.pnt)')
+        folder_name = os.path.basename(self.directory) if self.directory else 'untitled'
+        date_str = datetime.datetime.now().strftime('%Y%m%d')
+        default_file = f"{folder_name}_{date_str}.pnt"
+        
+        file_name = QtWidgets.QFileDialog.getSaveFileName(self.parent(), self.tr('Save Points'), os.path.join(self.directory, default_file), 'Point Files (*.pnt)')
         if file_name[0] != '':
             if override is False and self.directory != os.path.split(file_name[0])[0]:
                 QtWidgets.QMessageBox.warning(self.parent(), self.tr('ERROR'), self.tr('You are attempting to save the pnt file outside of the working directory. Operation canceled. POINT DATA NOT SAVED.'), QtWidgets.QMessageBox.StandardButton.Ok)
@@ -828,7 +1124,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         return False
         
     def save_as_legacy(self):
-        self.save_as(override=False, legacy=True)
+        self.save_as(override=True, legacy=True)
 
     def save(self, override=False):
         if self.previous_file_name and os.path.exists(os.path.split(self.previous_file_name)[0]):
@@ -868,17 +1164,19 @@ class Canvas(QtWidgets.QGraphicsScene):
         if not is_ctrl:
             self.selection = []
             
-        if self.pixmap is None:
+        if self.current_w <= 0:
             return
             
-        w = self.pixmap.width()
-        h = self.pixmap.height()
+        w = self.current_w
+        h = self.current_h
             
         current = self.points[self.current_image_name]
         for class_name in current:
             for point in current[class_name]:
-                px = point.x() * w
-                py = point.y() * h
+                # Transform stored ratio to display coords for hit-testing
+                tx, ty = self._transform_point(point.x(), point.y())
+                px = tx * w
+                py = ty * h
                 if rect.contains(QtCore.QPointF(px, py)):
                     found = False
                     for i, (sel_class, sel_point) in enumerate(self.selection):
@@ -920,23 +1218,11 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.display_points()
 
     def toggle_grid(self, display):
-        if display:
-            self.show_grid = True
+        self.show_grid = display
+        if self.show_grid:
             self.display_grid()
         else:
-            self.show_grid = False
             self.clear_grid()
-
-    def toggle_class_visibility(self, class_name):
-        if class_name in self.visibility:
-            self.visibility[class_name] = not self.visibility[class_name]
-            self.display_points()
-            
-    def toggle_all_visibility(self, visible):
-        for class_name in self.visibility:
-            self.visibility[class_name] = visible
-        self.display_points()
-
 
 
     def undo(self):

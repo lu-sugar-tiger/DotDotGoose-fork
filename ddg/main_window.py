@@ -54,7 +54,7 @@ class MainWindow(QtWidgets.QMainWindow):
         menu.addSeparator()
         menu.addAction(self.tr('Save'), self.centralWidget().canvas.save)
         menu.addAction(self.tr('Save as...'), self.centralWidget().canvas.save_as)
-        menu.addAction(self.tr('Save as Legacy Version'), self.centralWidget().canvas.save_as_legacy)
+        menu.addAction(self.tr('Save in Legacy'), self.centralWidget().canvas.save_as_legacy)
         menu.addSeparator()
         menu.addAction(self.tr('Export All Counts'), self.centralWidget().point_widget.export_counts)
         menu.addAction(self.tr('Export All Points'), self.centralWidget().point_widget.export_points)
@@ -79,6 +79,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menuBar().addSeparator()
 
         self.menuBar().addAction(self.tr('About'), self.about_dialog.show)
+
+        self._first_show = True
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._first_show:
+            self._first_show = False
+            self.showMaximized()
 
     def closeEvent(self, event):
         if self.centralWidget().canvas.dirty_data_check():

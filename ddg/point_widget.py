@@ -86,7 +86,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.tableWidgetClasses.horizontalHeader().sectionClicked.connect(self.header_clicked)
         self.tableWidgetClasses.horizontalHeader().setSortIndicatorShown(False)
 
-        self.checkBoxDisplayGrid.toggled.connect(self.display_grid)
+
         self.canvas.image_loading.connect(self.set_sliders)
         self.canvas.image_loaded.connect(self.image_loaded)
         self.canvas.update_point_count.connect(self.update_point_count)
@@ -106,9 +106,136 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         icon.fill(QtCore.Qt.GlobalColor.white)
         self.labelGridColor.setPixmap(icon)
         self.labelGridColor.mousePressEvent = self.change_grid_color
+        
+        self._transform_btn_style_normal = ''
+        self._transform_btn_style_active = 'background-color: #3388cc; color: white;'
+
+        # -- Transform buttons inside Temporary Adjustment group ---------------
+        # Transform Buttons (mimicking Add/Delete class buttons)
+        self.btnRotate = QtWidgets.QPushButton(self.tr('Rotate'))
+        self.btnRotate.setIcon(QtGui.QIcon('icons:rotate_cw.svg'))
+        self.btnRotate.setIconSize(QtCore.QSize(24, 24))
+        self.btnRotate.setToolTip(self.tr('Rotate CW'))
+        self.btnRotate.clicked.connect(self._on_rotate)
+        
+        self.btnFlipH = QtWidgets.QPushButton(self.tr('Flip H'))
+        self.btnFlipH.setIcon(QtGui.QIcon('icons:flip_h.svg'))
+        self.btnFlipH.setIconSize(QtCore.QSize(24, 24))
+        self.btnFlipH.setToolTip(self.tr('Horizontal Flip'))
+        self.btnFlipH.clicked.connect(self._on_flip_h)
+        
+        self.btnFlipV = QtWidgets.QPushButton(self.tr('Flip V'))
+        self.btnFlipV.setIcon(QtGui.QIcon('icons:flip_v.svg'))
+        self.btnFlipV.setIconSize(QtCore.QSize(24, 24))
+        self.btnFlipV.setToolTip(self.tr('Vertical Flip'))
+        self.btnFlipV.clicked.connect(self._on_flip_v)
+        
+        self.btnResetTransform = QtWidgets.QPushButton(self.tr('Reset'))
+        self.btnResetTransform.setIcon(QtGui.QIcon('icons:reset_transform.svg'))
+        self.btnResetTransform.setIconSize(QtCore.QSize(24, 24))
+        self.btnResetTransform.setToolTip(self.tr('Reset Transformation'))
+        self.btnResetTransform.clicked.connect(self._on_reset_transform)
+
+        grid1 = self.groupBox.layout() # Assuming groupBox's layout is gridLayout_1
+        # Set transform buttons to Expanding size policy for equal width
+        for btn in [self.btnRotate, self.btnFlipH, self.btnFlipV, self.btnResetTransform]:
+            btn.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
+            
+        grid1.addWidget(self.btnRotate, 2, 0)
+        grid1.addWidget(self.btnFlipH, 2, 1)
+        grid1.addWidget(self.btnFlipV, 2, 2)
+        grid1.addWidget(self.btnResetTransform, 2, 3)
+        
+        # Expand sliders to full width (span 3 columns, label takes 1)
+        # This preserves the original design with text labels.
+        grid1.addWidget(self.label, 0, 0)
+        grid1.addWidget(self.horizontalSliderBrightness, 0, 1, 1, 3)
+        grid1.addWidget(self.label_6, 1, 0)
+        grid1.addWidget(self.horizontalSliderContrast, 1, 1, 1, 3)
+
+        # -- REDESIGNED Settings Area (gridLayout_3) -------------------------
+        # User requested: | eye icon | color block | title | digit parameter |
+        # Columns: 0=eye, 1=color, 2=title, 3=digit
+        
+        # Clear existing layout children
+        grid3 = self.gridLayout_3 # Assuming gridLayout_3 is the target layout
+        for i in reversed(range(grid3.count())):
+            item = grid3.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+            elif item.spacerItem():
+                grid3.removeItem(item)
+
+        # 1. Point Radius row
+        self.btnTogglePoints = QtWidgets.QPushButton()
+        self.btnTogglePoints.setFlat(True)
+        self.btnTogglePoints.setIcon(QtGui.QIcon('icons:eye.svg'))
+        self.btnTogglePoints.setFixedSize(24, 24)
+        self.update_points_visibility_ui()
+        self.display_classes()
+        self.btnTogglePoints.clicked.connect(self.toggle_points_visibility)
+        grid3.addWidget(self.btnTogglePoints, 0, 0)
+        
+        # Color block blank for point radius (Col 1)
+        
+        lbl_pt_rad = QtWidgets.QLabel(self.tr('Point Radius'))
+        grid3.addWidget(lbl_pt_rad, 0, 2)
+        
+        self.spinBoxPointRadius = QtWidgets.QSpinBox()
+        self.spinBoxPointRadius.setRange(1, 10)
+        self.spinBoxPointRadius.setValue(int(self.canvas.ui['point']['radius']))
+        self.spinBoxPointRadius.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.spinBoxPointRadius.setFixedWidth(70)
+        self.spinBoxPointRadius.valueChanged.connect(self.canvas.set_point_radius)
+        grid3.addWidget(self.spinBoxPointRadius, 0, 3)
+
+        # 2. Grid Divisions row
+        self.btnToggleGrid = QtWidgets.QPushButton()
+        self.btnToggleGrid.setFlat(True)
+        self.btnToggleGrid.setIcon(QtGui.QIcon('icons:eye_slash.svg'))
+        self.btnToggleGrid.setFixedSize(24, 24)
+        self.update_grid_toggle_icon(self.canvas.show_grid)
+        self.btnToggleGrid.clicked.connect(self.toggle_grid_visibility)
+        grid3.addWidget(self.btnToggleGrid, 1, 0)
+        
+        self.labelGridColor = QtWidgets.QLabel()
+        self.labelGridColor.setFixedSize(16, 16)
+        self.update_grid_color_icon()
+        self.labelGridColor.mousePressEvent = self.change_grid_color
+        grid3.addWidget(self.labelGridColor, 1, 1)
+        
+        lbl_grid_div = QtWidgets.QLabel(self.tr('Grid Divisions'))
+        grid3.addWidget(lbl_grid_div, 1, 2)
+        
+        self.spinBoxGrid = QtWidgets.QSpinBox()
+        self.spinBoxGrid.setRange(1, 10)
+        self.spinBoxGrid.setValue(int(self.canvas.ui['grid']['size']))
+        self.spinBoxGrid.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.spinBoxGrid.setFixedWidth(70)
+        self.spinBoxGrid.valueChanged.connect(self.canvas.set_grid_size)
+        grid3.addWidget(self.spinBoxGrid, 1, 3)
+
+        # 3. Guide Lines row
+        self.btnToggleGuides = QtWidgets.QPushButton()
+        self.btnToggleGuides.setFlat(True)
+        self.btnToggleGuides.setIcon(QtGui.QIcon('icons:eye.svg'))
+        self.btnToggleGuides.setFixedSize(24, 24)
+        self.btnToggleGuides.clicked.connect(self.toggle_guidelines_visibility)
+        grid3.addWidget(self.btnToggleGuides, 2, 0)
+        
+        self.labelGuidelineColor = QtWidgets.QLabel()
+        self.labelGuidelineColor.setFixedSize(16, 16)
+        self.update_guideline_color_icon()
+        self.labelGuidelineColor.mousePressEvent = self.change_guideline_color
+        grid3.addWidget(self.labelGuidelineColor, 2, 1)
+        
+        lbl_gl = QtWidgets.QLabel(self.tr('Guide Lines'))
+        grid3.addWidget(lbl_gl, 2, 2)
+        # Digit parameter blank for guide lines (Col 3)
 
         self.horizontalSliderBrightness.valueChanged.connect(self.set_brightness)
         self.horizontalSliderContrast.valueChanged.connect(self.set_contrast)
+
 
     def add_class(self):
         max_num = 0
@@ -205,29 +332,88 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
                     self.canvas.active_class_changed.emit(class_name)
                     
         elif column == 0:
-            self.canvas.toggle_class_visibility(class_name)
-            self.display_classes()
+            if self.canvas.show_points:
+                self.canvas.toggle_class_visibility(class_name)
+                self.display_classes()
 
     def header_clicked(self, column):
         if column == 0:
-            # Check if any are hidden
-            all_visible = all(self.canvas.visibility.values())
-            self.canvas.toggle_all_visibility(not all_visible)
+            # Toggle global points visibility
+            new_state = not self.canvas.show_points
+            self.canvas.toggle_points(new_state)
+            self.update_points_visibility_ui()
             self.display_classes()
-            
-            item_visibility = QtWidgets.QTableWidgetItem("")
-            if not all_visible:
-                item_visibility.setIcon(QtGui.QIcon('icons:eye.svg'))
-            else:
-                item_visibility.setIcon(QtGui.QIcon('icons:eye_slash.svg'))
-            self.tableWidgetClasses.setHorizontalHeaderItem(0, item_visibility)
 
     def change_grid_color(self, event):
         for i, p_color in enumerate(self.canvas.palette):
             QtWidgets.QColorDialog.setCustomColor(i, p_color)
-        color = QtWidgets.QColorDialog.getColor()
+        color = QtWidgets.QColorDialog.getColor(QtGui.QColor(self.canvas.ui['grid']['color'][0], self.canvas.ui['grid']['color'][1], self.canvas.ui['grid']['color'][2]))
         if color.isValid():
             self.set_grid_color(color)
+
+    def change_guideline_color(self, event):
+        for i, p_color in enumerate(self.canvas.palette):
+            QtWidgets.QColorDialog.setCustomColor(i, p_color)
+        color = QtWidgets.QColorDialog.getColor(QtGui.QColor(self.canvas.ui['guideline']['color'][0], self.canvas.ui['guideline']['color'][1], self.canvas.ui['guideline']['color'][2]))
+        if color.isValid():
+            self.canvas.ui['guideline']['color'] = [color.red(), color.green(), color.blue()]
+            self.update_guideline_color_icon()
+            self.canvas.dirty = True
+            self.canvas.display_guidelines()
+
+    def set_grid_color(self, color):
+        self.canvas.ui['grid']['color'] = [color.red(), color.green(), color.blue()]
+        self.update_grid_color_icon()
+        self.canvas.dirty = True
+        self.canvas.display_grid()
+
+    def update_grid_color_icon(self):
+        icon = QtGui.QPixmap(20, 20)
+        color = QtGui.QColor(self.canvas.ui['grid']['color'][0], self.canvas.ui['grid']['color'][1], self.canvas.ui['grid']['color'][2])
+        icon.fill(color)
+        self.labelGridColor.setPixmap(icon)
+
+    def update_guideline_color_icon(self):
+        icon = QtGui.QPixmap(20, 20)
+        color = QtGui.QColor(self.canvas.ui['guideline']['color'][0], self.canvas.ui['guideline']['color'][1], self.canvas.ui['guideline']['color'][2])
+        icon.fill(color)
+        self.labelGuidelineColor.setPixmap(icon)
+
+    def toggle_points_visibility(self):
+        new_state = not self.canvas.show_points
+        self.canvas.toggle_points(new_state)
+        self.update_points_visibility_ui()
+        self.display_classes()
+
+    def update_points_visibility_ui(self):
+        icon_path = 'icons:eye.svg' if self.canvas.show_points else 'icons:eye_slash.svg'
+        self.btnTogglePoints.setIcon(QtGui.QIcon(icon_path))
+        self.update_header_eye_icon()
+
+    def toggle_grid_visibility(self):
+        # Always sync with canvas state to avoid mismatch
+        new_state = not self.canvas.show_grid
+        self.canvas.toggle_grid(new_state)
+        self.update_grid_toggle_icon(self.canvas.show_grid)
+
+    def toggle_guidelines_visibility(self):
+        new_state = not self.canvas.show_guidelines
+        self.canvas.toggle_guidelines(display=new_state)
+        self.update_guides_toggle_icon(new_state)
+
+    def update_grid_toggle_icon(self, display):
+        icon_path = 'icons:eye.svg' if display else 'icons:eye_slash.svg'
+        self.btnToggleGrid.setIcon(QtGui.QIcon(icon_path))
+
+    def update_guides_toggle_icon(self, display):
+        icon_path = 'icons:eye.svg' if display else 'icons:eye_slash.svg'
+        self.btnToggleGuides.setIcon(QtGui.QIcon(icon_path))
+
+    def update_header_eye_icon(self):
+        item_visibility = QtWidgets.QTableWidgetItem("")
+        icon_path = 'icons:eye.svg' if self.canvas.show_points else 'icons:eye_slash.svg'
+        item_visibility.setIcon(QtGui.QIcon(icon_path))
+        self.tableWidgetClasses.setHorizontalHeaderItem(0, item_visibility)
 
     def display_classes(self):
         self.tableWidgetClasses.blockSignals(True)
@@ -245,11 +431,27 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
                 
                 # Visibility icon
                 item_vis = QtWidgets.QTableWidgetItem()
-                if self.canvas.visibility.get(class_name, True):
-                    item_vis.setIcon(QtGui.QIcon('icons:eye.svg'))
+                icon_name = 'icons:eye.svg' if self.canvas.visibility.get(class_name, True) else 'icons:eye_slash.svg'
+                
+                if not self.canvas.show_points:
+                    # Render semi-transparent if global visibility is off
+                    # Use larger size for better quality then scale down via icon mechanism if needed
+                    pix = QtGui.QPixmap(64, 64)
+                    pix.fill(QtCore.Qt.GlobalColor.transparent)
+                    painter = QtGui.QPainter(pix)
+                    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+                    painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
+                    painter.setOpacity(0.5)
+                    # Draw original icon at high resolution
+                    orig_pix = QtGui.QIcon(icon_name).pixmap(64, 64)
+                    painter.drawPixmap(0, 0, 64, 64, orig_pix)
+                    painter.end()
+                    item_vis.setIcon(QtGui.QIcon(pix))
+                    # Keep Enabled so the blue selection bar applies to the whole row
+                    item_vis.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
                 else:
-                    item_vis.setIcon(QtGui.QIcon('icons:eye_slash.svg'))
-                item_vis.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+                    item_vis.setIcon(QtGui.QIcon(icon_name))
+                    item_vis.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
                 self.tableWidgetClasses.setItem(row, 0, item_vis)
 
                 item = QtWidgets.QTableWidgetItem(class_name)
@@ -341,9 +543,10 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.chip_dialog = ChipDialog(self.canvas.classes, self.canvas.points, self.canvas.directory, self.canvas.survey_id)
         self.chip_dialog.show()
 
-    def image_loaded(self, directory, file_name):
+    def image_loaded(self, directory, file_name, is_redraw=False):
         # self.tableWidgetClasses.selectionModel().clear()
         self.display_count_tree()
+        self.update_transform_buttons()
 
     def import_metadata(self):
         if self.canvas.dirty_data_check():
@@ -521,3 +724,48 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self.set_grid_color(color)
         self.spinBoxGrid.setValue(ui['grid']['size'])
         self.spinBoxPointRadius.setValue(ui['point']['radius'])
+        
+        # Update visibility icons
+        self.update_points_visibility_ui()
+        self.update_grid_toggle_icon(self.canvas.show_grid)
+        self.update_guides_toggle_icon(self.canvas.show_guidelines)
+        
+        # Guide line color
+        self.update_guideline_color_icon()
+
+    # -- Transform button handlers -----------------------------------------------
+
+    def _on_rotate(self):
+        self.canvas.rotate_current_image()
+        self.update_transform_buttons()
+
+    def _on_flip_h(self):
+        self.canvas.flip_h_current_image()
+        self.update_transform_buttons()
+
+    def _on_flip_v(self):
+        self.canvas.flip_v_current_image()
+        self.update_transform_buttons()
+
+    def _on_reset_transform(self):
+        self.canvas.reset_transform_current_image()
+        self.update_transform_buttons()
+
+    def update_transform_buttons(self):
+        """Refresh blue active state of transform buttons."""
+        transform = self.canvas._get_current_transform()
+        rot = transform.get('rotation', 0)
+        fh = transform.get('flip_h', False)
+        fv = transform.get('flip_v', False)
+        
+        self.btnRotate.setStyleSheet(self._transform_btn_style_active if rot != 0 else self._transform_btn_style_normal)
+        self.btnFlipH.setStyleSheet(self._transform_btn_style_active if fh else self._transform_btn_style_normal)
+        self.btnFlipV.setStyleSheet(self._transform_btn_style_active if fv else self._transform_btn_style_normal)
+
+    def change_guideline_color(self, event):
+        color = QtWidgets.QColorDialog.getColor()
+        if color.isValid():
+            icon = QtGui.QPixmap(20, 20)
+            icon.fill(color)
+            self.labelGuidelineColor.setPixmap(icon)
+            self.canvas.set_guideline_color(color)

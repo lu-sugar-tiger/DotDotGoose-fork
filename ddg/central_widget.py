@@ -52,7 +52,7 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.findChild(QtWidgets.QFrame, 'framePointWidget').layout().addWidget(self.point_widget)
         
         # Collapse right panel by default
-        self.splitterMain.setSizes([425, 800, 0])
+        self.splitterMain.setSizes([425, 800, 20])
         self.labelWorkingDirectory.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.canvas.saving.connect(self.display_quick_save)
         self.canvas.directory_set.connect(lambda: self.point_widget.display_classes())
@@ -96,7 +96,7 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.graphicsView.region_selected.connect(self.canvas.select_points)
         self.graphicsView.delete_selection.connect(self.canvas.delete_selected_points)
         self.graphicsView.relabel_selection.connect(self.canvas.relabel_selected_points)
-        self.graphicsView.toggle_grid.connect(self.point_widget.checkBoxDisplayGrid.toggle)
+        self.graphicsView.toggle_grid.connect(self.point_widget.toggle_grid_visibility)
         self.graphicsView.switch_class.connect(self.point_widget.set_active_class)
         self.graphicsView.add_point.connect(self.canvas.add_point)
         self.graphicsView.points_moved.connect(self.canvas.update_point_positions)
@@ -154,17 +154,111 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         layout.addWidget(self.btn_load_project)
         layout.addStretch()
         
+        # Put overlay in a self-centering layout covering the graphics view
+        gv_layout = QtWidgets.QVBoxLayout(self.graphicsView)
+        gv_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        gv_layout.addWidget(self.start_overlay)
+        
         self.canvas.directory_set.connect(self.start_overlay.hide)
         self.canvas.points_loaded.connect(self.start_overlay.hide)
+
+        btn_style = """
+        QPushButton {
+            background-color: rgba(128, 128, 128, 50);
+            border-radius: 2px;
+            border: 1px solid rgba(128, 128, 128, 100);
+        }
+        QPushButton:hover {
+            background-color: rgba(128, 128, 128, 100);
+        }
+        """
+
+        # Panel toggle buttons (parented to side panels)
+        self.btnToggleLeft = QtWidgets.QPushButton(self.framePointWidget)
+        self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
+        self.btnToggleLeft.setFixedSize(10, 24)
+        self.btnToggleLeft.setStyleSheet(btn_style)
+        self.btnToggleLeft.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.btnToggleLeft.clicked.connect(self.toggle_left_panel)
+        self.btnToggleLeft.raise_()
+
+        self.btnToggleRight = QtWidgets.QPushButton(self.frameCustomField)
+        self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
+        self.btnToggleRight.setFixedSize(10, 24)
+        self.btnToggleRight.setStyleSheet(btn_style)
+        self.btnToggleRight.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.btnToggleRight.clicked.connect(self.toggle_right_panel)
+        self.btnToggleRight.raise_()
+
+        # Fix panel widths and disable splitter adjustment completely
+        self.splitterMain.setHandleWidth(0)
+        for i in range(self.splitterMain.count()):
+            handle = self.splitterMain.handle(i)
+            handle.setEnabled(False)
+            handle.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+        # Remove strict min-size constraints inherited from layouts
+        self.framePointWidget.layout().setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetNoConstraint)
+        self.frameCustomField.layout().setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetNoConstraint)
+
+        self._left_collapsed = False
+        self._right_collapsed = True 
+
+        # Initial state setup
+        self.framePointWidget.setFixedWidth(425)
+        
+        self.label_4.setVisible(False)
+        self.lineEditSurveyId.setVisible(False)
+        self.groupBoxImageData.setVisible(False)
+        self.frameCustomField.setFixedWidth(10)
+
+    def toggle_left_panel(self):
+        self._left_collapsed = not self._left_collapsed
+        self.point_widget.setVisible(not self._left_collapsed)
+        if self._left_collapsed:
+            self.framePointWidget.setFixedWidth(10)
+            self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_right.svg'))
+        else:
+            self.framePointWidget.setFixedWidth(425)
+            self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
+        self.resizeEvent(None)
+
+    def toggle_right_panel(self):
+        self._right_collapsed = not self._right_collapsed
+        visible = not self._right_collapsed
+        
+        if self._right_collapsed:
+            self.label_4.setVisible(False)
+            self.lineEditSurveyId.setVisible(False)
+            self.groupBoxImageData.setVisible(False)
+            self.frameCustomField.setFixedWidth(10)
+            self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
+        else:
+            self.frameCustomField.setFixedWidth(300)
+            self.label_4.setVisible(True)
+            self.lineEditSurveyId.setVisible(True)
+            self.groupBoxImageData.setVisible(True)
+            self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_right.svg'))
+        self.resizeEvent(None)
 
     def resizeEvent(self, theEvent):
         self.graphicsView.resize_image()
         self.update_status_bar()
-        if hasattr(self, 'start_overlay'):
-            self.start_overlay.adjustSize()
-            w = self.start_overlay.width()
-            h = self.start_overlay.height()
-            self.start_overlay.setGeometry(int((self.graphicsView.width() - w) / 2), int((self.graphicsView.height() - h) / 2), w, h)
+        
+        # Position toggle buttons inside the panel borders
+        if hasattr(self, 'btnToggleLeft'):
+            if self._left_collapsed:
+                 self.btnToggleLeft.move(0, 5)
+            else:
+                 self.btnToggleLeft.move(self.framePointWidget.width() - self.btnToggleLeft.width() - 2, 5)
+            self.btnToggleLeft.raise_()
+            
+        if hasattr(self, 'btnToggleRight'):
+            if self._right_collapsed:
+                 self.btnToggleRight.move(0, 5)
+            else:
+                 self.btnToggleRight.move(2, 5)
+            self.btnToggleRight.raise_()
 
     # Image data field functions
     def add_field(self):

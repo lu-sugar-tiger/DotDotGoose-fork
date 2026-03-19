@@ -67,4 +67,10 @@ if __name__ == '__main__':
     handler = ExceptionHandler()
     handler.exception.connect(main.display_exception)
     main.show()
+    
+    # Load project from CLI arguments (file explorer association)
+    if len(sys.argv) > 1:
+        if os.path.isfile(sys.argv[1]):
+            main.centralWidget().canvas.load_points(sys.argv[1])
+            
     sys.exit(app.exec())

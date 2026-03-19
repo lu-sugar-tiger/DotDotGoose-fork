@@ -167,6 +167,7 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
             background-color: rgba(128, 128, 128, 50);
             border-radius: 2px;
             border: 1px solid rgba(128, 128, 128, 100);
+            padding: 0px;
         }
         QPushButton:hover {
             background-color: rgba(128, 128, 128, 100);
@@ -176,7 +177,8 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         # Panel toggle buttons (parented to side panels)
         self.btnToggleLeft = QtWidgets.QPushButton(self.framePointWidget)
         self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
-        self.btnToggleLeft.setFixedSize(10, 24)
+        self.btnToggleLeft.setIconSize(QtCore.QSize(8, 8))
+        self.btnToggleLeft.setFixedSize(10, 12)
         self.btnToggleLeft.setStyleSheet(btn_style)
         self.btnToggleLeft.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btnToggleLeft.clicked.connect(self.toggle_left_panel)
@@ -184,7 +186,8 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
 
         self.btnToggleRight = QtWidgets.QPushButton(self.frameCustomField)
         self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
-        self.btnToggleRight.setFixedSize(10, 24)
+        self.btnToggleRight.setIconSize(QtCore.QSize(8, 8))
+        self.btnToggleRight.setFixedSize(10, 12)
         self.btnToggleRight.setStyleSheet(btn_style)
         self.btnToggleRight.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btnToggleRight.clicked.connect(self.toggle_right_panel)
@@ -200,6 +203,7 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         # Remove strict min-size constraints inherited from layouts
         self.framePointWidget.layout().setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetNoConstraint)
         self.frameCustomField.layout().setSizeConstraint(QtWidgets.QLayout.SizeConstraint.SetNoConstraint)
+        self.graphicsView.setMinimumWidth(0)
 
         self._left_collapsed = False
         self._right_collapsed = True 

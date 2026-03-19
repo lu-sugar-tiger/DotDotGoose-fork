@@ -522,16 +522,10 @@ class Canvas(QtWidgets.QGraphicsScene):
                 points = self.points[self.current_image_name][class_name]
                 for point in points:
                     is_selected = has_selection and (class_name, point.x(), point.y()) in selected_set
-                    if has_selection and not is_selected:
-                        # Dim unselected points to 50% opacity
-                        dim_color = QtGui.QColor(base_color)
-                        dim_color.setAlpha(90)
-                        brush = QtGui.QBrush(dim_color, QtCore.Qt.BrushStyle.SolidPattern)
-                        pen = QtGui.QPen(brush, 0)
-                        pen.setStyle(QtCore.Qt.PenStyle.NoPen)
-                    else:
-                        brush = QtGui.QBrush(base_color, QtCore.Qt.BrushStyle.SolidPattern)
-                        pen = QtGui.QPen(brush, 2)
+                    
+                    brush = QtGui.QBrush(base_color, QtCore.Qt.BrushStyle.SolidPattern)
+                    pen = QtGui.QPen(brush, 2)
+                        
                     # Transform stored ratio to display position
                     tx, ty = self._transform_point(point.x(), point.y())
                     draw_x = tx * w
@@ -540,6 +534,14 @@ class Canvas(QtWidgets.QGraphicsScene):
                     item.setZValue(100)
                     item._class_name = class_name
                     item._point = point
+                    
+                    if is_selected:
+                        halo_radius = display_radius + 4
+                        halo_pen = QtGui.QPen(QtCore.Qt.GlobalColor.gray, 1, QtCore.Qt.PenStyle.DashLine)
+                        halo_brush = QtGui.QBrush(QtCore.Qt.BrushStyle.NoBrush)
+                        halo = self.addEllipse(QtCore.QRectF(draw_x - ((halo_radius - 1) / 2), draw_y - ((halo_radius - 1) / 2), halo_radius, halo_radius), halo_pen, halo_brush)
+                        halo.setZValue(99) # Render just behind the point
+                        halo.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
 
     def update_point_positions(self, items_to_move, dx, dy):
         if self.current_image_name is None:

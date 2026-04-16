@@ -65,17 +65,20 @@ class Exporter(QtCore.QThread):
                         directory = '{}{}{}{}'.format(self.output_directory, os.path.sep, class_name, os.path.sep)
                         for point in self.points[image][class_name]:
                             progress += 1
+                            # compute actual pixel coordinates from ratio
+                            px = point.x() * img.shape[1]
+                            py = point.y() * img.shape[0]
                             # set up file name and summary entry
                             self.totals[class_name] += 1
                             file_name = '{:010d}{}'.format(self.totals[class_name], self.file_type)
                             chip_name = '{}{}'.format(directory, file_name)
-                            output = '\n{},{},{},{},{},{}'.format(self.survey_id, image, class_name, point.x(), point.y(), chip_name)
+                            output = '\n{},{},{},{},{},{}'.format(self.survey_id, image, class_name, px, py, chip_name)
                             summary_file.write(output)
                             # caculate the clip window
-                            x = max(0, int(point.x()) - self.x_offset)
-                            y = max(0, int(point.y()) - self.y_offset)
-                            x2 = min((int(point.x()) - self.x_offset) + (self.x_offset * 2), img.shape[1])
-                            y2 = min((int(point.y()) - self.y_offset) + (self.y_offset * 2), img.shape[0])
+                            x = max(0, int(px) - self.x_offset)
+                            y = max(0, int(py) - self.y_offset)
+                            x2 = min((int(px) - self.x_offset) + (self.x_offset * 2), img.shape[1])
+                            y2 = min((int(py) - self.y_offset) + (self.y_offset * 2), img.shape[0])
                             window = img[y:y2, x:x2]
                             # fill the chip with data and save
                             chip = np.zeros((self.y_offset * 2, self.x_offset * 2, img.shape[2]), img.dtype)

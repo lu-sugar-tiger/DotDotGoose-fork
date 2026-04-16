@@ -358,16 +358,25 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
             # Show directory path
             text = self.canvas.directory
             
+        display_text = text
         if text and self.canvas.dirty:
-            text += "*"
+            display_text += "*"
             
         # Elide text if too long
         metrics = QtGui.QFontMetrics(self.labelWorkingDirectory.font())
         # Use a more generous width for eliding
         available_width = max(600, self.labelWorkingDirectory.width())
-        elided_text = metrics.elidedText(text, QtCore.Qt.TextElideMode.ElideMiddle, available_width)
+        elided_text = metrics.elidedText(display_text, QtCore.Qt.TextElideMode.ElideMiddle, available_width)
         self.labelWorkingDirectory.setText(elided_text)
         self.labelWorkingDirectory.setToolTip(text) # Add tooltip for full path accessibility
+        
+        # Update main window title
+        if self.window():
+            from ddg import __version__
+            title = 'DotDotGoose [v {}]'.format(__version__)
+            if display_text:
+                title += f" - {display_text}"
+            self.window().setWindowTitle(title)
 
     def on_file_opened(self, *args):
         self.update_status_bar()

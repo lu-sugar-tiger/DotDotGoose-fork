@@ -602,27 +602,100 @@ class Canvas(QtWidgets.QGraphicsScene):
     def export_points(self, file_name):
         if self.current_image_name is not None:
             file = open(file_name, 'w')
-            output = self.tr('survey id,image,class,x,y')
+            output = self.tr('survey id,image,class,x,y,x_ratio,y_ratio')
             file.write(output)
             for image in self.points:
+                try:
+                    from PIL import Image
+                    img = Image.open(os.path.join(self.directory, image))
+                    w, h = img.width, img.height
+                    img.close()
+                except Exception:
+                    w, h = 1.0, 1.0
                 for class_name in self.classes:
                     if class_name in self.points[image]:
                         for point in self.points[image][class_name]:
-                            output = '\n{},{},{},{},{}'.format(self.survey_id, image, class_name, point.x(), point.y())
+                            px = point.x() * w
+                            py = point.y() * h
+                            output = '\n{},{},{},{},{},{:.6f},{:.6f}'.format(self.survey_id, image, class_name, px, py, point.x(), point.y())
                             file.write(output)
             file.close()
 
+    def _paint_export_overlay(self, image_name, image):
+        painter = QtGui.QPainter(image)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        w = image.width()
+        h = image.height()
+        diag = np.sqrt(w**2 + h**2)
+        
+        # Draw Grid
+        if self.show_grid:
+            grid_cols = max(1, int(self.ui['grid']['size']))
+            x_step = w / grid_cols
+            y_step = h / grid_cols
+            line_width = max(1, (1.0 / 2000.0) * diag)
+            grid_color = QtGui.QColor(self.ui['grid']['color'][0], self.ui['grid']['color'][1], self.ui['grid']['color'][2])
+            pen = QtGui.QPen(QtGui.QBrush(grid_color, QtCore.Qt.BrushStyle.SolidPattern), line_width)
+            painter.setPen(pen)
+            for i in range(1, grid_cols):
+                x = i * x_step
+                painter.drawLine(QtCore.QLineF(x, 0.0, x, h))
+            for i in range(1, grid_cols):
+                y = i * y_step
+                painter.drawLine(QtCore.QLineF(0.0, y, w, y))
+
+        # Draw Guidelines
+        if self.show_guidelines:
+            guideline_data = self.image_data.get(image_name, {'guidelines': {'horizontal': [], 'vertical': []}})['guidelines']
+            guide_color = QtGui.QColor(self.ui['guideline']['color'][0], self.ui['guideline']['color'][1], self.ui['guideline']['color'][2])
+            line_width = max(1, (1.0 / 2000.0) * diag)
+            pen = QtGui.QPen(QtGui.QBrush(guide_color, QtCore.Qt.BrushStyle.SolidPattern), line_width)
+            painter.setPen(pen)
+            for y_ratio in guideline_data.get('horizontal', []):
+                y = y_ratio * h
+                painter.drawLine(QtCore.QLineF(0, y, w, y))
+            for x_ratio in guideline_data.get('vertical', []):
+                x = x_ratio * w
+                painter.drawLine(QtCore.QLineF(x, 0, x, h))
+
+        if self.show_points and image_name in self.points:
+            display_radius = max(1, (self.ui['point']['radius'] / 500.0) * diag)
+            for class_name in self.points[image_name]:
+                if class_name in self.colors and self.visibility.get(class_name, True):
+                     color = self.colors[class_name]
+                     brush = QtGui.QBrush(color, QtCore.Qt.BrushStyle.SolidPattern)
+                     pen = QtGui.QPen(brush, 2)
+                     painter.setPen(pen)
+                     painter.setBrush(brush)
+                     
+                     points = self.points[image_name][class_name]
+                     for point in points:
+                         px = point.x() * w
+                         py = point.y() * h
+                         painter.drawEllipse(QtCore.QRectF(px - ((display_radius - 1) / 2), py - ((display_radius - 1) / 2), display_radius, display_radius))
+        
+        painter.end()
+
+
     def export_overlay(self, file_name):
         if self.current_image_name is not None:
-            image = QtGui.QImage(int(self.sceneRect().width()), int(self.sceneRect().height()), QtGui.QImage.Format.Format_RGB32)
-            painter = QtGui.QPainter(image)
-            self.render(painter)
-            image.save(file_name)
-            painter.end()
+            try:
+                image_path = os.path.join(self.directory, self.current_image_name)
+                image = QtGui.QImage(image_path)
+                if image.isNull():
+                    return
+                if image.format() not in [QtGui.QImage.Format.Format_RGB32, QtGui.QImage.Format.Format_ARGB32]:
+                    image = image.convertToFormat(QtGui.QImage.Format.Format_RGB32)
+                
+                self._paint_export_overlay(self.current_image_name, image)
+                image.save(file_name)
+            except Exception:
+                pass
+
 
     def export_all_overlays(self, output_directory):
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
-        display_radius = self.ui['point']['radius']
         
         for image_name in self.points:
             try:
@@ -634,22 +707,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                 if image.format() not in [QtGui.QImage.Format.Format_RGB32, QtGui.QImage.Format.Format_ARGB32]:
                     image = image.convertToFormat(QtGui.QImage.Format.Format_RGB32)
 
-                painter = QtGui.QPainter(image)
-                
-                if image_name in self.points:
-                     for class_name in self.points[image_name]:
-                        if class_name in self.colors:
-                             color = self.colors[class_name]
-                             brush = QtGui.QBrush(color, QtCore.Qt.BrushStyle.SolidPattern)
-                             pen = QtGui.QPen(brush, 2)
-                             painter.setPen(pen)
-                             painter.setBrush(brush)
-                             
-                             points = self.points[image_name][class_name]
-                             for point in points:
-                                 painter.drawEllipse(QtCore.QRectF(point.x() - ((display_radius - 1) / 2), point.y() - ((display_radius - 1) / 2), display_radius, display_radius))
-                
-                painter.end()
+                self._paint_export_overlay(image_name, image)
                 
                 output_path = os.path.join(output_directory, 'overlay_' + image_name)
                 image.save(output_path)
@@ -729,7 +787,7 @@ class Canvas(QtWidgets.QGraphicsScene):
             osx_hack = os.path.join(peek, 'OSX')
             directory = os.path.split(osx_hack)[0]
             # end
-            if self.directory != '' and self.directory != directory:
+            if self.directory != '' and os.path.normcase(os.path.normpath(self.directory)) != os.path.normcase(os.path.normpath(directory)):
                 self.reset()
             
             self.directory = directory
@@ -753,7 +811,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                 if base_path != path:
                     error = True
                     message = self.tr('Files from multiple directories detected. Load canceled.')
-                if self.directory != '' and self.directory != path:
+                if self.directory != '' and os.path.normcase(os.path.normpath(self.directory)) != os.path.normcase(os.path.normpath(path)):
                     error = True
                     message = self.tr('Image originated outside current working directory. Load canceled.')
                 if error:
@@ -804,36 +862,47 @@ class Canvas(QtWidgets.QGraphicsScene):
                     max_stride = (array.shape[1] // stride) * stride
                     tail = array.shape[1] - max_stride
                     tile_channels = array.shape[2] if array.ndim == 3 else 1
-                    tile = np.zeros((array.shape[0], stride, tile_channels), dtype=np.uint8)
+                    
+                    if array.ndim == 2:
+                        tile = np.zeros((array.shape[0], stride), dtype=np.uint8)
+                    else:
+                        tile = np.zeros((array.shape[0], stride, tile_channels), dtype=np.uint8)
+                    
                     for s in range(0, max_stride, stride):
-                        tile[:, :] = self.LUT[array[:, s:s + stride]]
+                        tile[:] = self.LUT[array[:, s:s + stride]]
+                        bpl = int(tile.nbytes / tile.shape[0])
                         if tile_channels == 1:
-                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_Grayscale8)
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], bpl, QtGui.QImage.Format.Format_Grayscale8)
                         else:
-                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_RGB888)
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], bpl, QtGui.QImage.Format.Format_RGB888)
                         pixmap = QtGui.QPixmap.fromImage(qt_image)
                         item = self.addPixmap(pixmap)
                         item.moveBy(s, 0)
                     # Fix for windows, thin slivers at the end cause the app to hang. QImage bug?
                     if tail > 0:
-                        tile = np.ones((array.shape[0], stride, tile_channels), dtype=np.uint8) * 255
-                        tile[:, 0:tail] = array[:, max_stride:array.shape[1]]
-                        if tile_channels == 1:
-                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_Grayscale8)
+                        if array.ndim == 2:
+                            tile = np.ones((array.shape[0], stride), dtype=np.uint8) * 255
                         else:
-                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], QtGui.QImage.Format.Format_RGB888)
+                            tile = np.ones((array.shape[0], stride, tile_channels), dtype=np.uint8) * 255
+                            
+                        tile[:, 0:tail] = array[:, max_stride:array.shape[1]]
+                        bpl = int(tile.nbytes / tile.shape[0])
+                        if tile_channels == 1:
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], bpl, QtGui.QImage.Format.Format_Grayscale8)
+                        else:
+                            qt_image = QtGui.QImage(tile.data, tile.shape[1], tile.shape[0], bpl, QtGui.QImage.Format.Format_RGB888)
                         pixmap = QtGui.QPixmap.fromImage(qt_image)
                         item = self.addPixmap(pixmap)
                         item.moveBy(max_stride, 0)
                 else:
                     self.image_loading.emit(False, redraw)
+                    array = self.LUT[array]
+                    bpl = int(array.nbytes / array.shape[0])
                     if channels == 1:
-                        qt_image = QtGui.QImage(array.data, array.shape[1], array.shape[0], QtGui.QImage.Format.Format_Grayscale8)
+                        qt_image = QtGui.QImage(array.data, array.shape[1], array.shape[0], bpl, QtGui.QImage.Format.Format_Grayscale8)
                     else:
-                        array = self.LUT[array]
-                        bpl = int(array.nbytes / array.shape[0])
                         if array.shape[2] == 4:
-                            qt_image = QtGui.QImage(array.data, array.shape[1], array.shape[0], QtGui.QImage.Format.Format_RGBA8888)
+                            qt_image = QtGui.QImage(array.data, array.shape[1], array.shape[0], bpl, QtGui.QImage.Format.Format_RGBA8888)
                         else:
                             qt_image = QtGui.QImage(array.data, array.shape[1], array.shape[0], bpl, QtGui.QImage.Format.Format_RGB888)
                     self.pixmap = QtGui.QPixmap.fromImage(qt_image)
@@ -1121,6 +1190,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                     else:
                         return False
                 self.previous_file_name = file_name[0]
+                self.dirty_changed.emit(self.dirty) # Force a UI refresh now that the file name changed
                 self.clear_queues()
                 return True
         return False

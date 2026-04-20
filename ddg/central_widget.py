@@ -164,30 +164,30 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
 
         btn_style = """
         QPushButton {
-            background-color: rgba(128, 128, 128, 50);
-            border-radius: 2px;
-            border: 1px solid rgba(128, 128, 128, 100);
+            background-color: palette(mid);
+            border-radius: 7px;
+            border: none;
             padding: 0px;
         }
         QPushButton:hover {
-            background-color: rgba(128, 128, 128, 100);
+            background-color: palette(highlight);
         }
         """
 
         # Panel toggle buttons (parented to side panels)
         self.btnToggleLeft = QtWidgets.QPushButton(self.framePointWidget)
-        self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
-        self.btnToggleLeft.setIconSize(QtCore.QSize(8, 8))
-        self.btnToggleLeft.setFixedSize(10, 12)
+        self.btnToggleLeft.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
+        self.btnToggleLeft.setIconSize(QtCore.QSize(10, 16))
+        self.btnToggleLeft.setFixedSize(14, 20)
         self.btnToggleLeft.setStyleSheet(btn_style)
         self.btnToggleLeft.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btnToggleLeft.clicked.connect(self.toggle_left_panel)
         self.btnToggleLeft.raise_()
 
         self.btnToggleRight = QtWidgets.QPushButton(self.frameCustomField)
-        self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
-        self.btnToggleRight.setIconSize(QtCore.QSize(8, 8))
-        self.btnToggleRight.setFixedSize(10, 12)
+        self.btnToggleRight.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
+        self.btnToggleRight.setIconSize(QtCore.QSize(10, 16))
+        self.btnToggleRight.setFixedSize(14, 20)
         self.btnToggleRight.setStyleSheet(btn_style)
         self.btnToggleRight.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btnToggleRight.clicked.connect(self.toggle_right_panel)
@@ -221,10 +221,10 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.point_widget.setVisible(not self._left_collapsed)
         if self._left_collapsed:
             self.framePointWidget.setFixedWidth(10)
-            self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_right.svg'))
+            self.btnToggleLeft.setIcon(QtGui.QIcon('icons:chevron_right.svg'))
         else:
             self.framePointWidget.setFixedWidth(425)
-            self.btnToggleLeft.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
+            self.btnToggleLeft.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
         self.resizeEvent(None)
 
     def toggle_right_panel(self):
@@ -236,32 +236,34 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
             self.lineEditSurveyId.setVisible(False)
             self.groupBoxImageData.setVisible(False)
             self.frameCustomField.setFixedWidth(10)
-            self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_left.svg'))
+            self.btnToggleRight.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
         else:
             self.frameCustomField.setFixedWidth(300)
             self.label_4.setVisible(True)
             self.lineEditSurveyId.setVisible(True)
             self.groupBoxImageData.setVisible(True)
-            self.btnToggleRight.setIcon(QtGui.QIcon('icons:triangle_right.svg'))
+            self.btnToggleRight.setIcon(QtGui.QIcon('icons:chevron_right.svg'))
         self.resizeEvent(None)
 
     def resizeEvent(self, theEvent):
         self.graphicsView.resize_image()
         self.update_status_bar()
         
-        # Position toggle buttons inside the panel borders
+        # Position toggle buttons vertically centered on the panel edge
         if hasattr(self, 'btnToggleLeft'):
+            cy = self.framePointWidget.height() // 2 - self.btnToggleLeft.height() // 2
             if self._left_collapsed:
-                 self.btnToggleLeft.move(0, 5)
+                 self.btnToggleLeft.move(0, cy)
             else:
-                 self.btnToggleLeft.move(self.framePointWidget.width() - self.btnToggleLeft.width() - 2, 5)
+                 self.btnToggleLeft.move(self.framePointWidget.width() - self.btnToggleLeft.width() - 2, cy)
             self.btnToggleLeft.raise_()
             
         if hasattr(self, 'btnToggleRight'):
+            cy = self.frameCustomField.height() // 2 - self.btnToggleRight.height() // 2
             if self._right_collapsed:
-                 self.btnToggleRight.move(0, 5)
+                 self.btnToggleRight.move(0, cy)
             else:
-                 self.btnToggleRight.move(2, 5)
+                 self.btnToggleRight.move(2, cy)
             self.btnToggleRight.raise_()
 
     # Image data field functions

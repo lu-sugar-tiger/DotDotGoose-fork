@@ -85,19 +85,27 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         if scene:
             can_add = scene.show_points and scene.visibility.get(active_class, True)
             
+        # Start with the original neutral-colored marker icon
         pixmap = QtGui.QPixmap(orig_pixmap.size())
         pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+        painter = QtGui.QPainter(pixmap)
+        painter.drawPixmap(0, 0, orig_pixmap)
         
+        # Draw a small colored dot at the hotspot (tip) to indicate active class
         if scene and active_class and hasattr(scene, 'colors') and active_class in scene.colors:
             color = scene.colors[active_class]
-            painter = QtGui.QPainter(pixmap)
-            painter.drawPixmap(0, 0, orig_pixmap)
-            painter.setCompositionMode(QtGui.QPainter.CompositionMode.CompositionMode_SourceIn)
-            painter.fillRect(pixmap.rect(), color)
-            painter.end()
-        else:
-            pixmap = orig_pixmap
-            
+            dot_radius = 4
+            hotspot_x, hotspot_y = 3, 29
+            painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+            # Dark outline for contrast on any background
+            painter.setPen(QtCore.Qt.PenStyle.NoPen)
+            painter.setBrush(QtGui.QColor(0, 0, 0, 180))
+            painter.drawEllipse(QtCore.QPointF(hotspot_x, hotspot_y), dot_radius + 1, dot_radius + 1)
+            # Colored fill
+            painter.setBrush(color)
+            painter.drawEllipse(QtCore.QPointF(hotspot_x, hotspot_y), dot_radius, dot_radius)
+        
+        painter.end()
         self.add_cursor = QtGui.QCursor(pixmap, 3, 29)
         
         if hasattr(self, 'left_click_mode') and self.left_click_mode == 'add':

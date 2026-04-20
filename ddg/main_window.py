@@ -80,14 +80,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.menuBar().addAction(self.tr('About'), self.about_dialog.show)
 
-        self._first_show = True
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        if self._first_show:
-            self._first_show = False
-            self.showMaximized()
-
     def closeEvent(self, event):
         if self.centralWidget().canvas.dirty_data_check():
             event.accept()

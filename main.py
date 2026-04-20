@@ -66,7 +66,8 @@ if __name__ == '__main__':
     main = MainWindow()
     handler = ExceptionHandler()
     handler.exception.connect(main.display_exception)
-    main.showMaximized()
+    main.setWindowState(QtCore.Qt.WindowState.WindowMaximized)
+    main.show()
     
     # Load project from CLI arguments (file explorer association)
     if len(sys.argv) > 1:

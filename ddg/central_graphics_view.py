@@ -77,36 +77,56 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             self.drop_complete.emit(event.mimeData().urls())
 
     def update_add_cursor(self, class_name=None):
-        orig_pixmap = QtGui.QIcon('icons:ink_marker.svg').pixmap(QtCore.QSize(32, 32))
         scene = self.scene()
         active_class = class_name if class_name is not None else (scene.current_class_name if hasattr(scene, 'current_class_name') else None)
         
         can_add = True
         if scene:
             can_add = scene.show_points and scene.visibility.get(active_class, True)
-            
-        # Start with the original neutral-colored marker icon
-        pixmap = QtGui.QPixmap(orig_pixmap.size())
+
+        # Calculate the dot radius to match the actual on-screen point size
+        dot_radius = 4  # fallback
+        if scene and hasattr(scene, 'current_w') and scene.current_w > 0:
+            import numpy as np
+            w = scene.current_w
+            h = scene.current_h
+            diag = np.sqrt(w**2 + h**2)
+            scene_radius = (scene.ui['point']['radius'] / 500.0) * diag
+            # Scale from scene coords to screen pixels using current view transform
+            view_scale = self.transform().m11() if self.transform().m11() > 0 else 1.0
+            dot_radius = max(2, int(scene_radius * view_scale / 2))
+
+        # Build a cursor pixmap: colored dot + thin crosshair lines
+        size = max(32, dot_radius * 2 + 8)
+        if size % 2 == 0:
+            size += 1  # odd size so hotspot is exactly centered
+        center = size // 2
+        pixmap = QtGui.QPixmap(size, size)
         pixmap.fill(QtCore.Qt.GlobalColor.transparent)
         painter = QtGui.QPainter(pixmap)
-        painter.drawPixmap(0, 0, orig_pixmap)
-        
-        # Draw a small colored dot at the hotspot (tip) to indicate active class
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+
+        # Draw the colored dot
         if scene and active_class and hasattr(scene, 'colors') and active_class in scene.colors:
             color = scene.colors[active_class]
-            dot_radius = 4
-            hotspot_x, hotspot_y = 3, 29
-            painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-            # Dark outline for contrast on any background
-            painter.setPen(QtCore.Qt.PenStyle.NoPen)
-            painter.setBrush(QtGui.QColor(0, 0, 0, 180))
-            painter.drawEllipse(QtCore.QPointF(hotspot_x, hotspot_y), dot_radius + 1, dot_radius + 1)
-            # Colored fill
-            painter.setBrush(color)
-            painter.drawEllipse(QtCore.QPointF(hotspot_x, hotspot_y), dot_radius, dot_radius)
-        
+            # Semi-transparent fill so the image underneath is still visible
+            fill_color = QtGui.QColor(color.red(), color.green(), color.blue(), 100)
+            painter.setPen(QtGui.QPen(color, 1.5))
+            painter.setBrush(fill_color)
+            painter.drawEllipse(QtCore.QPointF(center, center), dot_radius, dot_radius)
+
+        # Draw crosshair lines (extending beyond the dot)
+        cross_len = min(6, dot_radius + 3)
+        painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 200), 1))
+        painter.drawLine(center, center - cross_len, center, center + cross_len)
+        painter.drawLine(center - cross_len, center, center + cross_len, center)
+        # Dark shadow for contrast
+        painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 120), 1))
+        painter.drawLine(center + 1, center - cross_len, center + 1, center + cross_len)
+        painter.drawLine(center - cross_len, center + 1, center + cross_len, center + 1)
+
         painter.end()
-        self.add_cursor = QtGui.QCursor(pixmap, 3, 29)
+        self.add_cursor = QtGui.QCursor(pixmap, center, center)
         
         if hasattr(self, 'left_click_mode') and self.left_click_mode == 'add':
             if not can_add:

@@ -162,24 +162,11 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.canvas.directory_set.connect(self.start_overlay.hide)
         self.canvas.points_loaded.connect(self.start_overlay.hide)
 
-        btn_style = """
-        QPushButton {
-            background-color: palette(mid);
-            border-radius: 7px;
-            border: none;
-            padding: 0px;
-        }
-        QPushButton:hover {
-            background-color: palette(highlight);
-        }
-        """
-
         # Panel toggle buttons (parented to side panels)
         self.btnToggleLeft = QtWidgets.QPushButton(self.framePointWidget)
         self.btnToggleLeft.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
         self.btnToggleLeft.setIconSize(QtCore.QSize(10, 16))
         self.btnToggleLeft.setFixedSize(14, 20)
-        self.btnToggleLeft.setStyleSheet(btn_style)
         self.btnToggleLeft.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btnToggleLeft.clicked.connect(self.toggle_left_panel)
         self.btnToggleLeft.raise_()
@@ -188,7 +175,6 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.btnToggleRight.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
         self.btnToggleRight.setIconSize(QtCore.QSize(10, 16))
         self.btnToggleRight.setFixedSize(14, 20)
-        self.btnToggleRight.setStyleSheet(btn_style)
         self.btnToggleRight.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btnToggleRight.clicked.connect(self.toggle_right_panel)
         self.btnToggleRight.raise_()

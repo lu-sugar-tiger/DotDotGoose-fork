@@ -66,8 +66,12 @@ if __name__ == '__main__':
     main = MainWindow()
     handler = ExceptionHandler()
     handler.exception.connect(main.display_exception)
-    main.setWindowState(QtCore.Qt.WindowState.WindowMaximized)
     main.show()
+    # Defer maximize to after the event loop processes the initial layout.
+    # Direct showMaximized() and setWindowState() both fail because
+    # CentralWidget.resizeEvent runs fitInView() during init and clobbers
+    # the geometry before the window manager can apply the maximized state.
+    QtCore.QTimer.singleShot(0, main.showMaximized)
     
     # Load project from CLI arguments (file explorer association)
     if len(sys.argv) > 1:

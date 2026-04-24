@@ -248,7 +248,9 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
                 except ValueError:
                     pass
         new_class = 'Class {}'.format(max_num + 1)
+        color = self.canvas.palette[self.canvas.color_index % len(self.canvas.palette)]
         self.canvas.add_class(new_class)
+        self.canvas.add_class_undoable(new_class, color)
         self.display_classes()
         self.display_count_tree()
         self.set_active_class(new_class)
@@ -265,7 +267,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
             new_class = item.text().strip()
             if new_class and old_class != new_class:
                 self.tableWidgetClasses.selectionModel().clear()
-                self.canvas.rename_class(old_class, new_class)
+                self.canvas.rename_class_undoable(old_class, new_class)
                 self.display_classes()
                 self.display_count_tree()
                 # Restore selection to the renamed class
@@ -317,19 +319,8 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
                 QtWidgets.QColorDialog.setCustomColor(i, p_color)
             color = QtWidgets.QColorDialog.getColor()
             if color.isValid():
-                self.canvas.colors[class_name] = color
-                self.canvas.dirty = True
-                
-                # Update the icon in the table
-                new_icon_item = QtWidgets.QTableWidgetItem()
-                icon = QtGui.QPixmap(20, 20)
-                icon.fill(color)
-                new_icon_item.setData(QtCore.Qt.ItemDataRole.DecorationRole, icon)
-                new_icon_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
-                self.tableWidgetClasses.setItem(row, 1, new_icon_item)
-                
-                if self.canvas.current_class_name == class_name:
-                    self.canvas.active_class_changed.emit(class_name)
+                old_color = self.canvas.colors.get(class_name)
+                self.canvas.change_color_undoable(class_name, old_color, color)
                     
         elif column == 0:
             if self.canvas.show_points:
@@ -617,9 +608,27 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
             msgBox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Cancel)
             response = msgBox.exec()
             if response == QtWidgets.QMessageBox.StandardButton.Ok:
+                self.canvas.remove_class_undoable(class_name)
                 self.canvas.remove_class(class_name)
                 self.display_classes()
                 self.display_count_tree()
+
+    def update_class_highlight(self, mode):
+        """Show/hide class row highlight based on current interaction mode."""
+        if mode == 'add':
+            # In add mode, highlight the active class row
+            if self.canvas.current_class_name:
+                items = self.tableWidgetClasses.findItems(
+                    self.canvas.current_class_name, QtCore.Qt.MatchFlag.MatchExactly)
+                if items:
+                    self.tableWidgetClasses.blockSignals(True)
+                    self.tableWidgetClasses.selectRow(items[0].row())
+                    self.tableWidgetClasses.blockSignals(False)
+        else:
+            # In select/move mode, clear the blue highlight
+            self.tableWidgetClasses.blockSignals(True)
+            self.tableWidgetClasses.clearSelection()
+            self.tableWidgetClasses.blockSignals(False)
 
     def select_model_item(self, model_index):
         item = self.model.itemFromIndex(model_index)

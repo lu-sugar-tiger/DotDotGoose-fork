@@ -35,6 +35,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
     relabel_selection = QtCore.pyqtSignal()
     toggle_grid = QtCore.pyqtSignal()
     switch_class = QtCore.pyqtSignal(int)
+    mode_changed = QtCore.pyqtSignal(str)  # emits 'add' or 'select_move'
 
     points_moved = QtCore.pyqtSignal(list, float, float)
 
@@ -90,6 +91,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             if not can_add:
                 self.left_click_mode = 'select_move'
                 self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                self.mode_changed.emit('select_move')
             else:
                 self.setCursor(self.add_cursor)
 
@@ -302,13 +304,16 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             if self.left_click_mode == 'add':
                 self.left_click_mode = 'select_move'
                 self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                self.mode_changed.emit('select_move')
             elif can_add:
                 self.left_click_mode = 'add'
                 self.setCursor(self.add_cursor)
+                self.mode_changed.emit('add')
             else:
                 # Force select_move if add is not allowed
                 self.left_click_mode = 'select_move'
                 self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                self.mode_changed.emit('select_move')
             event.accept()
             return
             
@@ -499,11 +504,15 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             if self._drag_start is not None:
                 self._drag_start = None
                 self._items_to_move = []
-                
-                if self.left_click_mode == 'add':
-                    self.setCursor(self.add_cursor)
-                else:
-                    self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                # Signal canvas that the drag session ended
+                scene = self.scene()
+                if scene:
+                    scene._move_drag_active = False
+                    
+                    if self.left_click_mode == 'add':
+                        self.setCursor(self.add_cursor)
+                    else:
+                        self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
                     
                 event.accept()
                 return

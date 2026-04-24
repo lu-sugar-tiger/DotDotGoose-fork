@@ -45,6 +45,7 @@ class Canvas(QtWidgets.QGraphicsScene):
     saving = QtCore.pyqtSignal()
     active_class_changed = QtCore.pyqtSignal(str)
     dirty_changed = QtCore.pyqtSignal(bool)
+    classes_changed = QtCore.pyqtSignal()  # Emitted when class list/colors change (for undo/redo)
 
     def __init__(self, parent=None):
         QtWidgets.QGraphicsScene.__init__(self, parent)
@@ -58,6 +59,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.selection = []
         self.redo_queue = []
         self.undo_queue = []
+        self._move_drag_active = False
         self.ui = {'grid': {'size': 5, 'color': [255, 255, 255]}, 'point': {'radius': 5, 'color': [255, 255, 0]}, 'guideline': {'color': [0, 255, 255]}}
 
         self.survey_id = ''
@@ -369,7 +371,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                 item._class_name = self.current_class_name
                 item._point = ratio_point
             self.update_point_count.emit(self.current_image_name, self.current_class_name, len(self.points[self.current_image_name][self.current_class_name]))
-            self.undo_queue.append(('add', self.current_class_name, ratio_point))
+            self.undo_queue.append(('add', self.current_image_name, self.current_class_name, ratio_point))
             self.redo_queue = []  # New action clears redo history
             self.dirty = True
             if hasattr(self, 'selection') and self.selection:
@@ -401,7 +403,8 @@ class Canvas(QtWidgets.QGraphicsScene):
     def delete_selected_points(self):
         if self.current_image_name is not None:
             points = self.points[self.current_image_name]
-            self.undo_queue.append(('delete', None, self.selection))
+            self.undo_queue.append(('delete', self.current_image_name, self.selection))
+            self.redo_queue = []
             for class_name, point in self.selection:
                 points[class_name].remove(point)
                 self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
@@ -546,24 +549,45 @@ class Canvas(QtWidgets.QGraphicsScene):
     def update_point_positions(self, items_to_move, dx, dy):
         if self.current_image_name is None:
             return
-            
+
+        moves = []  # Track (class, old_point, new_point) for undo
         for class_name, old_point in items_to_move:
             if class_name in self.points[self.current_image_name]:
                 points_list = self.points[self.current_image_name][class_name]
                 for i, p in enumerate(points_list):
                     if p.x() == old_point.x() and p.y() == old_point.y():
-                        # The incoming dx and dy are ratio deltas calculated
-                        # in the graphics view based on inverse-transformed mouse movement.
                         new_p = QtCore.QPointF(p.x() + dx, p.y() + dy)
+                        moves.append((class_name, QtCore.QPointF(old_point), new_p))
                         points_list[i] = new_p
                         
-                        # Update selection if this point was selected
                         for j, (sel_class, sel_point) in enumerate(self.selection):
                             if sel_class == class_name and sel_point.x() == old_point.x() and sel_point.y() == old_point.y():
                                 self.selection[j] = (class_name, new_p)
                                 break
                         break
-                        
+
+        if moves:
+            # Merge with previous move entry if it's part of the same drag
+            if (self.undo_queue and self.undo_queue[-1][0] == 'move'
+                    and self.undo_queue[-1][1] == self.current_image_name
+                    and self._move_drag_active):
+                # Extend: update new_point in existing entry
+                prev_moves = self.undo_queue[-1][2]
+                merged = []
+                for cls, old_p, new_p in moves:
+                    found = False
+                    for k, (pc, po, pn) in enumerate(prev_moves):
+                        if pc == cls and abs(pn.x() - old_p.x()) < 1e-9 and abs(pn.y() - old_p.y()) < 1e-9:
+                            prev_moves[k] = (pc, po, new_p)
+                            found = True
+                            break
+                    if not found:
+                        prev_moves.append((cls, old_p, new_p))
+            else:
+                self.undo_queue.append(('move', self.current_image_name, moves))
+                self.redo_queue = []
+            self._move_drag_active = True
+
         self.dirty = True
         self.display_points()
 
@@ -919,8 +943,6 @@ class Canvas(QtWidgets.QGraphicsScene):
                     self.image_loaded.emit(self.directory, self.current_image_name, False)
             else:
                 self.image_loaded.emit(self.directory, self.current_image_name, redraw)
-                if not redraw:
-                    self.clear_queues()
             QtWidgets.QApplication.restoreOverrideCursor()
 
     def load_images(self, images):
@@ -1097,9 +1119,9 @@ class Canvas(QtWidgets.QGraphicsScene):
 
     def relabel_selected_points(self):
         if self.current_class_name is not None:
-            self.undo_queue.append(('relabel', self.current_class_name, self.selection))
+            self.undo_queue.append(('relabel', self.current_image_name, self.current_class_name, self.selection))
+            self.redo_queue = []
             for class_name, point in self.selection:
-                # Remove original point
                 self.points[self.current_image_name][class_name].remove(point)
                 self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
                 if self.current_class_name not in self.points[self.current_image_name]:
@@ -1109,6 +1131,35 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.selection = []
             self.display_points()
             self.dirty = True
+
+    def rename_class_undoable(self, old_class, new_class):
+        """Rename a class with undo support."""
+        self.undo_queue.append(('rename', None, old_class, new_class))
+        self.redo_queue = []
+        self.rename_class(old_class, new_class)
+
+    def change_color_undoable(self, class_name, old_color, new_color):
+        """Change a class color with undo support."""
+        self.undo_queue.append(('color', None, class_name, old_color, new_color))
+        self.redo_queue = []
+        self.colors[class_name] = new_color
+        self.display_points()
+        self.dirty = True
+
+    def add_class_undoable(self, class_name, color):
+        """Record add_class for undo."""
+        self.undo_queue.append(('add_class', None, class_name, color))
+        self.redo_queue = []
+
+    def remove_class_undoable(self, class_name):
+        """Record remove_class for undo, snapshotting all points."""
+        color = self.colors.get(class_name)
+        points_snapshot = {}
+        for img in self.points:
+            if class_name in self.points[img] and self.points[img][class_name]:
+                points_snapshot[img] = list(self.points[img][class_name])
+        self.undo_queue.append(('remove_class', None, class_name, color, points_snapshot))
+        self.redo_queue = []
 
     def rename_class(self, old_class, new_class):
         index = self.classes.index(old_class)
@@ -1136,8 +1187,6 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.image_data = {}
         self.classes = []
         self.selection = []
-        self.redo_queue = []
-        self.undo_queue = []
         self.coordinates = {}
         self.custom_fields = {'fields': [], 'data': {}}
         self.color_index = 0
@@ -1191,7 +1240,6 @@ class Canvas(QtWidgets.QGraphicsScene):
                         return False
                 self.previous_file_name = file_name[0]
                 self.dirty_changed.emit(self.dirty) # Force a UI refresh now that the file name changed
-                self.clear_queues()
                 return True
         return False
         
@@ -1201,7 +1249,6 @@ class Canvas(QtWidgets.QGraphicsScene):
     def save(self, override=False):
         if self.previous_file_name and os.path.exists(os.path.split(self.previous_file_name)[0]):
             self.save_points(self.previous_file_name)
-            self.clear_queues()
             return True
         else:
             return self.save_as(override)
@@ -1297,70 +1344,171 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.clear_grid()
 
 
+    def _navigate_to_image(self, image_name):
+        """Switch to a specific image for cross-image undo/redo."""
+        if image_name and image_name != self.current_image_name:
+            self.selection = []
+            self.load_image(os.path.join(self.directory, image_name))
+
+    def _apply_undo(self, event):
+        """Apply the reverse of an operation."""
+        op = event[0]
+        if op == 'add':
+            # ('add', image, class, point)
+            img, cls, pt = event[1], event[2], event[3]
+            self._navigate_to_image(img)
+            if cls in self.points[img] and pt in self.points[img][cls]:
+                self.points[img][cls].remove(pt)
+            self.update_point_count.emit(img, cls, len(self.points[img].get(cls, [])))
+            self.display_points()
+        elif op == 'delete':
+            # ('delete', image, selection_list)
+            img, sel = event[1], event[2]
+            self._navigate_to_image(img)
+            for cls, pt in sel:
+                if cls not in self.points[img]:
+                    self.points[img][cls] = []
+                self.points[img][cls].append(pt)
+                self.update_point_count.emit(img, cls, len(self.points[img][cls]))
+            self.display_points()
+        elif op == 'move':
+            # ('move', image, [(class, old_point, new_point), ...])
+            img, moves = event[1], event[2]
+            self._navigate_to_image(img)
+            for cls, old_p, new_p in moves:
+                if cls in self.points[img]:
+                    for i, p in enumerate(self.points[img][cls]):
+                        if abs(p.x() - new_p.x()) < 1e-9 and abs(p.y() - new_p.y()) < 1e-9:
+                            self.points[img][cls][i] = old_p
+                            break
+            self.display_points()
+        elif op == 'relabel':
+            # ('relabel', image, new_class, selection_list)
+            img, new_cls, sel = event[1], event[2], event[3]
+            self._navigate_to_image(img)
+            for old_cls, pt in sel:
+                if new_cls in self.points[img] and pt in self.points[img][new_cls]:
+                    self.points[img][new_cls].remove(pt)
+                self.update_point_count.emit(img, new_cls, len(self.points[img].get(new_cls, [])))
+                if old_cls not in self.points[img]:
+                    self.points[img][old_cls] = []
+                self.points[img][old_cls].append(pt)
+                self.update_point_count.emit(img, old_cls, len(self.points[img][old_cls]))
+            self.display_points()
+        elif op == 'rename':
+            # ('rename', None, old_name, new_name)
+            old_name, new_name = event[2], event[3]
+            self.rename_class(new_name, old_name)
+        elif op == 'color':
+            # ('color', None, class_name, old_color, new_color)
+            cls, old_color = event[2], event[3]
+            self.colors[cls] = old_color
+            self.display_points()
+        elif op == 'add_class':
+            # ('add_class', None, class_name, color)
+            cls = event[2]
+            if cls in self.classes:
+                self.classes.remove(cls)
+            if cls in self.colors:
+                del self.colors[cls]
+            for img in self.points:
+                if cls in self.points[img]:
+                    del self.points[img][cls]
+            self.display_points()
+        elif op == 'remove_class':
+            # ('remove_class', None, class_name, color, {img: [points]})
+            cls, color, pts_snap = event[2], event[3], event[4]
+            if cls not in self.classes:
+                self.classes.append(cls)
+                self.classes.sort()
+            self.colors[cls] = color
+            self.visibility[cls] = True
+            for img, pts in pts_snap.items():
+                if img in self.points:
+                    self.points[img][cls] = list(pts)
+            self.display_points()
+        self.dirty = True
+
+    def _apply_redo(self, event):
+        """Apply the forward version of an operation."""
+        op = event[0]
+        if op == 'add':
+            img, cls, pt = event[1], event[2], event[3]
+            self._navigate_to_image(img)
+            if cls not in self.points[img]:
+                self.points[img][cls] = []
+            self.points[img][cls].append(pt)
+            self.update_point_count.emit(img, cls, len(self.points[img][cls]))
+            self.display_points()
+        elif op == 'delete':
+            img, sel = event[1], event[2]
+            self._navigate_to_image(img)
+            for cls, pt in sel:
+                if cls in self.points[img] and pt in self.points[img][cls]:
+                    self.points[img][cls].remove(pt)
+                self.update_point_count.emit(img, cls, len(self.points[img].get(cls, [])))
+            self.display_points()
+        elif op == 'move':
+            img, moves = event[1], event[2]
+            self._navigate_to_image(img)
+            for cls, old_p, new_p in moves:
+                if cls in self.points[img]:
+                    for i, p in enumerate(self.points[img][cls]):
+                        if abs(p.x() - old_p.x()) < 1e-9 and abs(p.y() - old_p.y()) < 1e-9:
+                            self.points[img][cls][i] = new_p
+                            break
+            self.display_points()
+        elif op == 'relabel':
+            img, new_cls, sel = event[1], event[2], event[3]
+            self._navigate_to_image(img)
+            for old_cls, pt in sel:
+                if old_cls in self.points[img] and pt in self.points[img][old_cls]:
+                    self.points[img][old_cls].remove(pt)
+                self.update_point_count.emit(img, old_cls, len(self.points[img].get(old_cls, [])))
+                if new_cls not in self.points[img]:
+                    self.points[img][new_cls] = []
+                self.points[img][new_cls].append(pt)
+                self.update_point_count.emit(img, new_cls, len(self.points[img][new_cls]))
+            self.display_points()
+        elif op == 'rename':
+            old_name, new_name = event[2], event[3]
+            self.rename_class(old_name, new_name)
+        elif op == 'color':
+            cls, new_color = event[2], event[4]
+            self.colors[cls] = new_color
+            self.display_points()
+        elif op == 'add_class':
+            cls, color = event[2], event[3]
+            if cls not in self.classes:
+                self.classes.append(cls)
+                self.classes.sort()
+            self.colors[cls] = color
+            self.visibility[cls] = True
+        elif op == 'remove_class':
+            cls = event[2]
+            if cls in self.classes:
+                self.classes.remove(cls)
+            if cls in self.colors:
+                del self.colors[cls]
+            for img in self.points:
+                if cls in self.points[img]:
+                    del self.points[img][cls]
+            self.display_points()
+        self.dirty = True
+
     def undo(self):
-        if len(self.undo_queue) > 0:
+        if self.undo_queue:
             event = self.undo_queue.pop()
-            if event[0] == 'add':
-                if event[1] in self.points[self.current_image_name]:
-                    if event[2] in self.points[self.current_image_name][event[1]]:
-                        self.points[self.current_image_name][event[1]].remove(event[2])
-                    self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                self.display_points()
-                self.redo_queue.append(event)
-            elif event[0] == 'delete':
-                for class_name, point in event[2]:
-                    if class_name not in self.points[self.current_image_name]:
-                        self.points[self.current_image_name][class_name] = []
-                    self.points[self.current_image_name][class_name].append(point)
-                    self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
-                self.display_points()
-                self.redo_queue.append(event)
-            elif event[0] == 'relabel':
-                # event[1] is new class, event[2] is list of (old_class, point)
-                for old_class, point in event[2]:
-                    if event[1] in self.points[self.current_image_name] and point in self.points[self.current_image_name][event[1]]:
-                        self.points[self.current_image_name][event[1]].remove(point)
-                    self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                    if old_class not in self.points[self.current_image_name]:
-                        self.points[self.current_image_name][old_class] = []
-                    self.points[self.current_image_name][old_class].append(point)
-                    self.update_point_count.emit(self.current_image_name, old_class, len(self.points[self.current_image_name][old_class]))
-                self.display_points()
-                self.redo_queue.append(event)
-            self.dirty = True
+            self._apply_undo(event)
+            self.redo_queue.append(event)
+            self.classes_changed.emit()
 
     def redo(self):
-        if len(self.redo_queue) > 0:
+        if self.redo_queue:
             event = self.redo_queue.pop()
-            if event[0] == 'add':
-                # Re-add point: event[1]=class, event[2]=point
-                if event[1] not in self.points[self.current_image_name]:
-                    self.points[self.current_image_name][event[1]] = []
-                self.points[self.current_image_name][event[1]].append(event[2])
-                self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                self.display_points()
-                self.undo_queue.append(event)
-            elif event[0] == 'delete':
-                # Re-delete: event[2]=list of (class, point)
-                for class_name, point in event[2]:
-                    if class_name in self.points[self.current_image_name] and point in self.points[self.current_image_name][class_name]:
-                        self.points[self.current_image_name][class_name].remove(point)
-                    self.update_point_count.emit(self.current_image_name, class_name, len(self.points[self.current_image_name][class_name]))
-                self.display_points()
-                self.undo_queue.append(event)
-            elif event[0] == 'relabel':
-                # Re-relabel: event[1]=new class, event[2]=list of (old_class, point)
-                for old_class, point in event[2]:
-                    if old_class in self.points[self.current_image_name] and point in self.points[self.current_image_name][old_class]:
-                        self.points[self.current_image_name][old_class].remove(point)
-                    self.update_point_count.emit(self.current_image_name, old_class, len(self.points[self.current_image_name][old_class]))
-                    if event[1] not in self.points[self.current_image_name]:
-                        self.points[self.current_image_name][event[1]] = []
-                    self.points[self.current_image_name][event[1]].append(point)
-                    self.update_point_count.emit(self.current_image_name, event[1], len(self.points[self.current_image_name][event[1]]))
-                self.display_points()
-                self.undo_queue.append(event)
-            self.dirty = True
+            self._apply_redo(event)
+            self.undo_queue.append(event)
+            self.classes_changed.emit()
 
     def toggle_class_visibility(self, class_name):
         self.visibility[class_name] = not self.visibility.get(class_name, True)

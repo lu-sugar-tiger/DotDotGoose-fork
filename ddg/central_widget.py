@@ -103,6 +103,9 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.canvas.image_loaded.connect(self.graphicsView.image_loaded)
         self.canvas.directory_set.connect(self.display_working_directory)
         self.canvas.active_class_changed.connect(self.graphicsView.update_add_cursor)
+        self.graphicsView.mode_changed.connect(self.point_widget.update_class_highlight)
+        self.canvas.classes_changed.connect(self.point_widget.display_classes)
+        self.canvas.classes_changed.connect(self.point_widget.display_count_tree)
 
         # Image data fields
         self.canvas.image_loaded.connect(self.display_coordinates)

@@ -554,7 +554,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                         pen_dark.setDashPattern([4, 4])
                         pen_dark.setCosmetic(True)
                         halo_dark = self.addEllipse(halo_rect, pen_dark, halo_brush)
-                        halo_dark.setZValue(99)
+                        halo_dark.setZValue(101)
                         halo_dark.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
                         # Light blue dashes offset to fill the gaps
                         pen_light = QtGui.QPen(QtGui.QColor(192, 216, 240), 4, QtCore.Qt.PenStyle.DashLine)
@@ -562,7 +562,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                         pen_light.setDashOffset(4)
                         pen_light.setCosmetic(True)
                         halo_light = self.addEllipse(halo_rect, pen_light, halo_brush)
-                        halo_light.setZValue(99)
+                        halo_light.setZValue(101)
                         halo_light.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
 
     def update_point_positions(self, items_to_move, dx, dy):

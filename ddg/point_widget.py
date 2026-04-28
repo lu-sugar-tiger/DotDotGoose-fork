@@ -615,6 +615,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
 
     def update_class_highlight(self, mode):
         """Show/hide class row highlight based on current interaction mode."""
+        self._interaction_mode = mode
         if mode == 'add':
             # In add mode, highlight the active class row
             if self.canvas.current_class_name:
@@ -644,6 +645,10 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
             class_name = self.tableWidgetClasses.item(selected.indexes()[0].row(), 2).text()
             self.canvas.set_current_class_by_name(class_name)
         elif len(self.canvas.classes) > 0:
+            # Only force a row re-selection if we're in add mode
+            # (in select_move mode, empty selection is intentional)
+            if getattr(self, '_interaction_mode', 'add') != 'add':
+                return
             self.tableWidgetClasses.blockSignals(True)
             if self.canvas.current_class_name:
                 items = self.tableWidgetClasses.findItems(self.canvas.current_class_name, QtCore.Qt.MatchFlag.MatchExactly)

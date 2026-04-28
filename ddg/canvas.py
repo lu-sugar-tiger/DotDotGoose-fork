@@ -539,13 +539,13 @@ class Canvas(QtWidgets.QGraphicsScene):
                     item._point = point
                     
                     if is_selected:
-                        # Convert 4 screen pixels to scene units for a cosmetic gap
-                        cosmetic_gap = 4.0
+                        # Gap = 10 screen pixels: 2px halo pen inward + ~2px point pen outward + 6px visible gap
+                        cosmetic_gap = 10.0
                         views = self.views()
                         if views:
                             scale = views[0].transform().m11()
                             if scale > 0:
-                                cosmetic_gap = 4.0 / scale
+                                cosmetic_gap = 10.0 / scale
                         halo_radius = display_radius + cosmetic_gap
                         halo_rect = QtCore.QRectF(draw_x - ((halo_radius - 1) / 2), draw_y - ((halo_radius - 1) / 2), halo_radius, halo_radius)
                         halo_brush = QtGui.QBrush(QtCore.Qt.BrushStyle.NoBrush)

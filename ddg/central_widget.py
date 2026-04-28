@@ -203,13 +203,13 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
         self.label_4.setVisible(False)
         self.lineEditSurveyId.setVisible(False)
         self.groupBoxImageData.setVisible(False)
-        self.frameCustomField.setFixedWidth(10)
+        self.frameCustomField.setFixedWidth(16)
 
     def toggle_left_panel(self):
         self._left_collapsed = not self._left_collapsed
         self.point_widget.setVisible(not self._left_collapsed)
         if self._left_collapsed:
-            self.framePointWidget.setFixedWidth(10)
+            self.framePointWidget.setFixedWidth(16)
             self.btnToggleLeft.setIcon(QtGui.QIcon('icons:chevron_right.svg'))
         else:
             self.framePointWidget.setFixedWidth(425)
@@ -224,7 +224,7 @@ class CentralWidget(QtWidgets.QDialog, CLASS_DIALOG):
             self.label_4.setVisible(False)
             self.lineEditSurveyId.setVisible(False)
             self.groupBoxImageData.setVisible(False)
-            self.frameCustomField.setFixedWidth(10)
+            self.frameCustomField.setFixedWidth(16)
             self.btnToggleRight.setIcon(QtGui.QIcon('icons:chevron_left.svg'))
         else:
             self.frameCustomField.setFixedWidth(300)

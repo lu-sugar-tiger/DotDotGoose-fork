@@ -540,13 +540,23 @@ class Canvas(QtWidgets.QGraphicsScene):
                     
                     if is_selected:
                         halo_radius = display_radius + 4
-                        halo_pen = QtGui.QPen(QtCore.Qt.GlobalColor.gray, 2, QtCore.Qt.PenStyle.DashLine)
-                        halo_pen.setDashPattern([8, 4])
-                        halo_pen.setCosmetic(True)  # consistent visual width at any zoom
+                        halo_rect = QtCore.QRectF(draw_x - ((halo_radius - 1) / 2), draw_y - ((halo_radius - 1) / 2), halo_radius, halo_radius)
                         halo_brush = QtGui.QBrush(QtCore.Qt.BrushStyle.NoBrush)
-                        halo = self.addEllipse(QtCore.QRectF(draw_x - ((halo_radius - 1) / 2), draw_y - ((halo_radius - 1) / 2), halo_radius, halo_radius), halo_pen, halo_brush)
-                        halo.setZValue(99) # Render just behind the point
-                        halo.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
+                        # Dark blue dashes (rubber band border color)
+                        pen_dark = QtGui.QPen(QtGui.QColor(56, 117, 215), 2, QtCore.Qt.PenStyle.DashLine)
+                        pen_dark.setDashPattern([6, 6])
+                        pen_dark.setCosmetic(True)
+                        halo_dark = self.addEllipse(halo_rect, pen_dark, halo_brush)
+                        halo_dark.setZValue(99)
+                        halo_dark.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
+                        # Light blue dashes offset to fill the gaps
+                        pen_light = QtGui.QPen(QtGui.QColor(192, 216, 240), 2, QtCore.Qt.PenStyle.DashLine)
+                        pen_light.setDashPattern([6, 6])
+                        pen_light.setDashOffset(6)
+                        pen_light.setCosmetic(True)
+                        halo_light = self.addEllipse(halo_rect, pen_light, halo_brush)
+                        halo_light.setZValue(99)
+                        halo_light.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
 
     def update_point_positions(self, items_to_move, dx, dy):
         if self.current_image_name is None:

@@ -540,7 +540,8 @@ class Canvas(QtWidgets.QGraphicsScene):
                     
                     if is_selected:
                         halo_radius = display_radius + 4
-                        halo_pen = QtGui.QPen(QtCore.Qt.GlobalColor.gray, 1, QtCore.Qt.PenStyle.DashLine)
+                        halo_pen = QtGui.QPen(QtCore.Qt.GlobalColor.gray, 2, QtCore.Qt.PenStyle.DashLine)
+                        halo_pen.setDashPattern([8, 4])
                         halo_pen.setCosmetic(True)  # consistent visual width at any zoom
                         halo_brush = QtGui.QBrush(QtCore.Qt.BrushStyle.NoBrush)
                         halo = self.addEllipse(QtCore.QRectF(draw_x - ((halo_radius - 1) / 2), draw_y - ((halo_radius - 1) / 2), halo_radius, halo_radius), halo_pen, halo_brush)

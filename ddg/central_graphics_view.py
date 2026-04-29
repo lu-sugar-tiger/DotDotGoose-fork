@@ -567,18 +567,12 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
 
     def zoom_in(self):
         self.scale(1.1, 1.1)
-        scene = self.scene()
-        if scene and hasattr(scene, 'display_points'):
-            scene.display_points()
         self.repaint()
 
     def zoom_out(self):
         # Limit zoom out to 50% scale
         if self.transform().m11() > 0.5:
             self.scale(0.9, 0.9)
-            scene = self.scene()
-            if scene and hasattr(scene, 'display_points'):
-                scene.display_points()
             self.repaint()
 
     # -- Guide interaction helpers -----------------------------------------------

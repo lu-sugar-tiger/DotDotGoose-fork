@@ -49,11 +49,23 @@ class AboutDialog(QtWidgets.QDialog, CLASS_DIALOG):
 
         self.labelVersion.setText(__version__)
 
+        # Fork notice
+        fork_label = QtWidgets.QLabel('Fork by Anson — github.com/lu-sugar-tiger/DotDotGoose-fork')
+        fork_font = fork_label.font()
+        fork_font.setPointSize(9)
+        fork_label.setFont(fork_font)
+        fork_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.labelVersion.parentWidget().layout().addWidget(fork_label)
+
         entry = QtWidgets.QLabel('Peter J. Ersts, {}'.format(self.tr('Center for Biodiversity and Conservation')))
         font = entry.font()
         font.setPointSize(10)
         entry.setFont(font)
         self.groupBoxDevelopers.layout().addWidget(entry)
+
+        entry = QtWidgets.QLabel('Anson (fork) — editing workflow, cross-image undo/redo, image tools, batch export')
+        entry.setFont(font)
+        self.groupBoxContributors.layout().addWidget(entry)
 
         entry = QtWidgets.QLabel('Ido Senesh, https://github.com/idoadse')
         entry.setFont(font)

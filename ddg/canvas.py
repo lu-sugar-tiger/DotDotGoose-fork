@@ -359,6 +359,9 @@ class Canvas(QtWidgets.QGraphicsScene):
             display_ratio_x = point.x() / w
             display_ratio_y = point.y() / h
             orig_x, orig_y = self._inverse_transform_point(display_ratio_x, display_ratio_y)
+            # Clamp to image bounds [0, 1]
+            orig_x = max(0.0, min(1.0, orig_x))
+            orig_y = max(0.0, min(1.0, orig_y))
             ratio_point = QtCore.QPointF(orig_x, orig_y)
             self.points[self.current_image_name][self.current_class_name].append(ratio_point)
             
@@ -569,7 +572,9 @@ class Canvas(QtWidgets.QGraphicsScene):
                 points_list = self.points[self.current_image_name][class_name]
                 for i, p in enumerate(points_list):
                     if p.x() == old_point.x() and p.y() == old_point.y():
-                        new_p = QtCore.QPointF(p.x() + dx, p.y() + dy)
+                        new_x = max(0.0, min(1.0, p.x() + dx))
+                        new_y = max(0.0, min(1.0, p.y() + dy))
+                        new_p = QtCore.QPointF(new_x, new_y)
                         moves.append((class_name, QtCore.QPointF(old_point), new_p))
                         points_list[i] = new_p
                         

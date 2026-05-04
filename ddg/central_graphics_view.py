@@ -58,6 +58,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         self._pan_start = None
         self._drag_start = None
         self._items_to_move = []
+        self._fit_scale = 1.0  # baseline scale from fitInView
         self._guide_dragging = False
         self._guide_creating = False
         self._guide_index = -1
@@ -561,6 +562,7 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             if items_rect.width() > 0:
                 self.fitInView(items_rect, QtCore.Qt.AspectRatioMode.KeepAspectRatio)
                 self.setSceneRect(items_rect)
+                self._fit_scale = self.transform().m11()
 
     def wheelEvent(self, event):
         if len(self.scene().items()) > 0:
@@ -574,8 +576,8 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
         self.repaint()
 
     def zoom_out(self):
-        # Limit zoom out to 50% scale
-        if self.transform().m11() > 0.5:
+        # Limit zoom out to 50% of the fit-to-view baseline
+        if self.transform().m11() > self._fit_scale * 0.5:
             self.scale(0.9, 0.9)
             self.repaint()
 

@@ -26,7 +26,7 @@
 import sys
 import traceback
 from PyQt6 import QtCore
-DEBUG = True
+DEBUG = not getattr(sys, 'frozen', False)
 
 
 class ExceptionHandler(QtCore.QObject):

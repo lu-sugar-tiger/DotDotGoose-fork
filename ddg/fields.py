@@ -57,7 +57,7 @@ class LineText(QtWidgets.QLineEdit):
     update = QtCore.pyqtSignal(str, str)
 
     def __init__(self, parent):
-        QtWidgets.QTextEdit.__init__(self, parent)
+        QtWidgets.QLineEdit.__init__(self, parent)
         self.timer = QtCore.QTimer()
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.fire)

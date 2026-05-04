@@ -2,8 +2,8 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — keyboard shortcuts (undo/redo), menu layout,
-#   folder/project switching, mode persistence
+# Modified by: Anson, 2026-03 to 2026-05 — keyboard shortcuts (undo/redo),
+#   panel toggles, signal wiring, mode persistence
 # --------------------------------------------------------------------------
 #
 # This file is part of the DotDotGoose application.

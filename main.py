@@ -3,7 +3,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — maximized window on launch
+# Modified by: Anson, 2026-03 to 2026-04 — auto-maximize, icon search paths
 #
 # --------------------------------------------------------------------------
 #

@@ -2,8 +2,9 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — undo/redo, selection UX, visibility toggles,
-#   half-transparent selection, relabel flow, batch overlay export
+# Modified by: Anson, 2026-03 to 2026-05 — cross-image undo/redo (move, rename,
+#   color, add/remove class), selection halo, visibility toggles, relabel flow,
+#   batch overlay export
 #
 # --------------------------------------------------------------------------
 #
@@ -1156,6 +1157,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.redo_queue = []
         self.colors[class_name] = new_color
         self.display_points()
+        self.classes_changed.emit()
         self.dirty = True
 
     def add_class_undoable(self, class_name, color):

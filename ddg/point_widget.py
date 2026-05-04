@@ -2,8 +2,8 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — class editor sorting, name-based interactions,
-#   double-click relabel, blockSignals fix, batch overlay export
+# Modified by: Anson, 2026-03 to 2026-05 — class editor sorting, undoable ops,
+#   mode-aware class highlighting, double-click relabel, batch overlay export
 #
 # --------------------------------------------------------------------------
 #

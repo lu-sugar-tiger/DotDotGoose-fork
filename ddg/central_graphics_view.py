@@ -2,8 +2,8 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — mouse modes, selection/deselect, drag-move,
-#   custom cursors, relabel flow
+# Modified by: Anson, 2026-03 to 2026-05 — mouse modes, selection/deselect,
+#   drag-move, mode-changed signal, panel toggle buttons, custom cursors
 #
 # --------------------------------------------------------------------------
 #
@@ -318,6 +318,10 @@ class CentralGraphicsView(QtWidgets.QGraphicsView):
             return
             
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            # Defensive reset in case a previous drag release was missed
+            scene = self.scene()
+            if scene:
+                scene._move_drag_active = False
             pos = event.position().toPoint()
             
             # 1. Check for guide manipulation FIRST (always active)

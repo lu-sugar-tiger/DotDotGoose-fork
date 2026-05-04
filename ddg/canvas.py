@@ -353,6 +353,11 @@ class Canvas(QtWidgets.QGraphicsScene):
                 
             w = self.current_w
             h = self.current_h
+
+            # Reject clicks outside image bounds
+            if point.x() < 0 or point.x() >= w or point.y() < 0 or point.y() >= h:
+                return
+
             diag = np.sqrt(w**2 + h**2)
             
             # Inverse-transform display position to original ratio for storage

@@ -63,7 +63,7 @@ class AboutDialog(QtWidgets.QDialog, CLASS_DIALOG):
         entry.setFont(font)
         self.groupBoxDevelopers.layout().addWidget(entry)
 
-        entry = QtWidgets.QLabel('Anson (fork) — editing workflow, cross-image undo/redo, image tools, batch export')
+        entry = QtWidgets.QLabel('Anson (fork) — UI/UX improvement, image tools, batch export')
         entry.setFont(font)
         self.groupBoxContributors.layout().addWidget(entry)
 

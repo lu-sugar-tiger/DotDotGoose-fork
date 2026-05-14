@@ -83,9 +83,9 @@
      </property>
      <layout class="QHBoxLayout" name="horizontalLayout_3">
       <item>
-       <widget class="QRadioButton" name="radioButtonPng">
+       <widget class="QRadioButton" name="radioButtonJpeg">
         <property name="text">
-         <string>png</string>
+         <string>jpeg</string>
         </property>
         <property name="checked">
          <bool>true</bool>
@@ -93,9 +93,9 @@
        </widget>
       </item>
       <item>
-       <widget class="QRadioButton" name="radioButtonJpeg">
+       <widget class="QRadioButton" name="radioButtonPng">
         <property name="text">
-         <string>jpeg</string>
+         <string>png</string>
         </property>
        </widget>
       </item>

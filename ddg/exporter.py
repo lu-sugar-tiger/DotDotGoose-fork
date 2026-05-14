@@ -77,11 +77,16 @@ class Exporter(QtCore.QThread):
                             # caculate the clip window
                             x = max(0, int(px) - self.x_offset)
                             y = max(0, int(py) - self.y_offset)
-                            x2 = min((int(px) - self.x_offset) + (self.x_offset * 2), img.shape[1])
-                            y2 = min((int(py) - self.y_offset) + (self.y_offset * 2), img.shape[0])
+                            x2 = min(x + (self.x_offset * 2), img.shape[1])
+                            y2 = min(y + (self.y_offset * 2), img.shape[0])
                             window = img[y:y2, x:x2]
                             # fill the chip with data and save
-                            chip = np.zeros((self.y_offset * 2, self.x_offset * 2, img.shape[2]), img.dtype)
+                            chip_h = self.y_offset * 2
+                            chip_w = self.x_offset * 2
+                            if len(img.shape) == 3:
+                                chip = np.zeros((chip_h, chip_w, img.shape[2]), img.dtype)
+                            else:
+                                chip = np.zeros((chip_h, chip_w), img.dtype)
                             chip[0:window.shape[0], 0:window.shape[1]] = window
                             out_image = Image.fromarray(chip)
                             out_image.save(chip_name)

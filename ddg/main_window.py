@@ -67,15 +67,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         menu.addAction(self.tr('Quit'), self.quit)
 
-        menu = self.menuBar().addMenu(self.tr('Language'))
-        menu.setObjectName('Language')
-        menu.addAction(self.tr('Chinese (Mandarin)'), self.zh_Hans_CN)
-        menu.addAction(self.tr('English'), self.en_US)
-        menu.addAction(self.tr('French'), self.fr_FR)
-        menu.addAction(self.tr('Hungarian'), self.hu_HU)
-        menu.addAction(self.tr('Spanish'), self.es_CO)
-        menu.addAction(self.tr('Vietnamese'), self.vi_VN)
-
         self.menuBar().addSeparator()
 
         self.menuBar().addAction(self.tr('About'), self.about_dialog.show)
@@ -91,39 +82,6 @@ class MainWindow(QtWidgets.QMainWindow):
         for line in error:
             self.error_widget.append(line)
         self.error_widget.show()
-
-    def en_US(self):
-        settings = QtCore.QSettings("AMNH", "DotDotGoose")
-        settings.setValue('locale', 'en_US')
-        self.restart_message()
-
-    def es_CO(self):
-        settings = QtCore.QSettings("AMNH", "DotDotGoose")
-        settings.setValue('locale', 'es_CO')
-        self.restart_message()
-
-    def fr_FR(self):
-        settings = QtCore.QSettings("AMNH", "DotDotGoose")
-        settings.setValue('locale', 'fr')
-        self.restart_message()
-
-    def hu_HU(self):
-        settings = QtCore.QSettings("AMNH", "DotDotGoose")
-        settings.setValue('locale', 'hu')
-        self.restart_message()
-
-    def vi_VN(self):
-        settings = QtCore.QSettings("AMNH", "DotDotGoose")
-        settings.setValue('locale', 'vi_VN')
-        self.restart_message()
-
-    def zh_Hans_CN(self):
-        settings = QtCore.QSettings("AMNH", "DotDotGoose")
-        settings.setValue('locale', 'zh_Hans_CN')
-        self.restart_message()
-
-    def restart_message(self):
-        QtWidgets.QMessageBox.warning(self, self.tr('Restart Required'), self.tr('You must restart the application for the language setting to be applied.'), QtWidgets.QMessageBox.StandardButton.Ok)
 
     def quit(self):
         self.close()

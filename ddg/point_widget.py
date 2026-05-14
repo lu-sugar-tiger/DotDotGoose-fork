@@ -110,7 +110,7 @@ class PointWidget(QtWidgets.QWidget, WIDGET):
         self._transform_btn_style_normal = ''
         self._transform_btn_style_active = 'background-color: #3388cc; color: white;'
 
-        # -- Transform buttons inside Enhancements group ---------------
+        # -- Transform buttons inside Enhancing group ---------------
         # Transform Buttons (mimicking Add/Delete class buttons)
         self.btnRotate = QtWidgets.QPushButton(self.tr('Rotate'))
         self.btnRotate.setIcon(QtGui.QIcon('icons:rotate_cw.svg'))

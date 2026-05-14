@@ -131,7 +131,7 @@
       <item row="1" column="0" colspan="3">
        <widget class="QGroupBox" name="groupBox">
         <property name="title">
-         <string>Enhancements</string>
+         <string>Enhancing</string>
         </property>
         <layout class="QGridLayout" name="gridLayout">
          <item row="0" column="0">

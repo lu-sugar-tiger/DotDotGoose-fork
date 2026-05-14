@@ -85,7 +85,7 @@
       <item>
        <widget class="QRadioButton" name="radioButtonJpeg">
         <property name="text">
-         <string>jpeg</string>
+         <string>JPG</string>
         </property>
         <property name="checked">
          <bool>true</bool>
@@ -95,7 +95,7 @@
       <item>
        <widget class="QRadioButton" name="radioButtonPng">
         <property name="text">
-         <string>png</string>
+         <string>PNG</string>
         </property>
        </widget>
       </item>

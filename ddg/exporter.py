@@ -89,6 +89,8 @@ class Exporter(QtCore.QThread):
                                 chip = np.zeros((chip_h, chip_w), img.dtype)
                             chip[0:window.shape[0], 0:window.shape[1]] = window
                             out_image = Image.fromarray(chip)
+                            if self.file_type == '.jpg' and out_image.mode == 'RGBA':
+                                out_image = out_image.convert('RGB')
                             out_image.save(chip_name)
                             out_image.close()
 

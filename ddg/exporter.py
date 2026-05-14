@@ -2,7 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-#
+# Modified by: Anson, 2026-05 — grayscale chip fix, RGBA-to-RGB for JPEG
 # --------------------------------------------------------------------------
 #
 # This file is part of the DotDotGoose application.

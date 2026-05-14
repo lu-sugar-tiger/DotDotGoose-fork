@@ -2,7 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-#
+# Modified by: Anson, 2026-05 — fix LineText init (upstream bug)
 # --------------------------------------------------------------------------
 #
 # This file is part of the DotDotGoose application.

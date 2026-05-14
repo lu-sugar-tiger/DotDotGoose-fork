@@ -2,7 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — UI path adjustments for PyInstaller
+# Modified by: Anson, 2026-03 to 2026-05 — UI path adjustments, auto-close on export
 #
 # --------------------------------------------------------------------------
 #

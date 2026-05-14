@@ -2,7 +2,7 @@
 #
 # DotDotGoose
 # Author: Peter Ersts (ersts@amnh.org)
-# Modified by: Anson, 2026-03 — exception handler adjustments
+# Modified by: Anson, 2026-03 to 2026-05 — conditional DEBUG for frozen builds
 #
 # --------------------------------------------------------------------------
 #

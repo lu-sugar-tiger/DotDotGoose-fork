@@ -91,7 +91,7 @@ class ChipDialog(QtWidgets.QDialog, CLASS_DIALOG):
                 self.exporter.start()
 
     def finished(self):
-        self.pushButtonCancel.setText(self.tr('Close'))
+        self.close()
 
     def set_height(self, value):
         self.height = value

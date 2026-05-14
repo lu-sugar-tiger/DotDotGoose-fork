@@ -832,6 +832,8 @@ class Canvas(QtWidgets.QGraphicsScene):
 
         # Handle .pnt project file drop
         if len(drop_list) == 1 and os.path.isfile(peek) and peek.lower().endswith('.pnt'):
+            if self.directory != '' and not self.dirty_data_check():
+                return
             self.load_points(peek)
             return
 
@@ -841,6 +843,8 @@ class Canvas(QtWidgets.QGraphicsScene):
             directory = os.path.split(osx_hack)[0]
             # end
             if self.directory != '' and os.path.normcase(os.path.normpath(self.directory)) != os.path.normcase(os.path.normpath(directory)):
+                if not self.dirty_data_check():
+                    return
                 self.reset()
             
             self.directory = directory
@@ -865,8 +869,10 @@ class Canvas(QtWidgets.QGraphicsScene):
                     error = True
                     message = self.tr('Files from multiple directories detected. Load canceled.')
                 if self.directory != '' and os.path.normcase(os.path.normpath(self.directory)) != os.path.normcase(os.path.normpath(path)):
-                    error = True
-                    message = self.tr('Image originated outside current working directory. Load canceled.')
+                    if not self.dirty_data_check():
+                        return None
+                    self.reset()
+                    break
                 if error:
                     QtWidgets.QMessageBox.warning(self.parent(), self.tr('Warning'), message, QtWidgets.QMessageBox.StandardButton.Ok)
                     return None
@@ -1228,7 +1234,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         self.current_class_name = None
         self.fields_updated.emit([])
         self.points_loaded.emit('')
-        self.image_loaded.emit('', '')
+        self.image_loaded.emit('', '', False)
         self.directory_set.emit('')
         
         self.show_guidelines = True

@@ -857,24 +857,20 @@ class Canvas(QtWidgets.QGraphicsScene):
             self.load_images(image_list)
         else:
             base_path = os.path.split(peek)[0]
+            # If images come from a different directory, offer to switch
+            if self.directory != '' and os.path.normcase(os.path.normpath(self.directory)) != os.path.normcase(os.path.normpath(base_path)):
+                if not self.dirty_data_check():
+                    return None
+                self.reset()
+            # Validate: no mixed dirs/files
             for entry in drop_list:
                 file_name = entry.toLocalFile()
                 path = os.path.split(file_name)[0]
-                error = False
-                message = ''
                 if os.path.isdir(file_name):
-                    error = True
-                    message = self.tr('Mix of files and directories detected. Load canceled.')
+                    QtWidgets.QMessageBox.warning(self.parent(), self.tr('Warning'), self.tr('Mix of files and directories detected. Load canceled.'), QtWidgets.QMessageBox.StandardButton.Ok)
+                    return None
                 if base_path != path:
-                    error = True
-                    message = self.tr('Files from multiple directories detected. Load canceled.')
-                if self.directory != '' and os.path.normcase(os.path.normpath(self.directory)) != os.path.normcase(os.path.normpath(path)):
-                    if not self.dirty_data_check():
-                        return None
-                    self.reset()
-                    break
-                if error:
-                    QtWidgets.QMessageBox.warning(self.parent(), self.tr('Warning'), message, QtWidgets.QMessageBox.StandardButton.Ok)
+                    QtWidgets.QMessageBox.warning(self.parent(), self.tr('Warning'), self.tr('Files from multiple directories detected. Load canceled.'), QtWidgets.QMessageBox.StandardButton.Ok)
                     return None
             self.directory = base_path
             self.directory_set.emit(self.directory)
@@ -991,7 +987,7 @@ class Canvas(QtWidgets.QGraphicsScene):
                 self.points[image_name] = {}
         if not self.classes:
             self.add_class('Default', dirty=False)
-            self.points_loaded.emit('')
+        self.points_loaded.emit('')
         self.dirty = False # Fresh folder load shouldn't be dirty
         if len(images) > 0:
             self.load_image(images[0])

@@ -829,6 +829,12 @@ class Canvas(QtWidgets.QGraphicsScene):
 
     def load(self, drop_list):
         peek = drop_list[0].toLocalFile()
+
+        # Handle .pnt project file drop
+        if len(drop_list) == 1 and os.path.isfile(peek) and peek.lower().endswith('.pnt'):
+            self.load_points(peek)
+            return
+
         if os.path.isdir(peek):
             # strip off trailing sep from path
             osx_hack = os.path.join(peek, 'OSX')
@@ -993,7 +999,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         file.close()
         self.survey_id = data['metadata']['survey_id']
 
-        is_legacy = 'version' not in data or data['version'] != '1.7.0-fork.2'
+        is_legacy = 'version' not in data or data['version'] not in ('1.7.0-fork.2', '1.7.0-fork.3')
 
         # Backward compat
         if 'custom_fields' in data:
@@ -1069,7 +1075,7 @@ class Canvas(QtWidgets.QGraphicsScene):
         package = {'classes': [], 'points': {}, 'colors': {}, 'metadata': {'survey_id': self.survey_id, 'coordinates': self.coordinates}, 'custom_fields': self.custom_fields, 'ui': self.ui}
         
         if not legacy:
-            package['version'] = '1.7.0-fork.2'
+            package['version'] = '1.7.0-fork.3'
             
         package['classes'] = self.classes
         for class_name in self.colors:

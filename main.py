@@ -37,6 +37,25 @@ if __name__ == '__main__':
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass
+
+        # Register .pnt file type association (frozen builds only, per-user)
+        if getattr(sys, 'frozen', False):
+            import winreg
+            try:
+                exe_path = sys.executable
+                # Associate .pnt extension with our ProgID
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Classes\.pnt') as key:
+                    winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'DotDotGoose.Project')
+                # Register ProgID with icon and open command
+                prog_key = r'Software\Classes\DotDotGoose.Project'
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, prog_key) as key:
+                    winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'DotDotGoose Project')
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, prog_key + r'\DefaultIcon') as key:
+                    winreg.SetValueEx(key, '', 0, winreg.REG_SZ, '{},0'.format(exe_path))
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, prog_key + r'\shell\open\command') as key:
+                    winreg.SetValueEx(key, '', 0, winreg.REG_SZ, '"{}" "%1"'.format(exe_path))
+            except Exception:
+                pass
             
     app = QtWidgets.QApplication(sys.argv)
     # Register search paths BEFORE constructing MainWindow so icons resolve correctly
